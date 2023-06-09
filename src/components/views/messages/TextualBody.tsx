@@ -639,6 +639,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                 stripReplyFallback: stripReply,
                 ref: this.contentRef,
                 returnString: false,
+                emotes: this.state.finalEmotes,
             });
         }
         if (this.props.replacingEventId) {
