@@ -29,6 +29,7 @@ import LabelledToggleSwitch from '../elements/LabelledToggleSwitch';
 import { stringify } from '../dialogs/devtools/Event';
 const EMOTES_STATE=new UnstableValue("m.room.emotes","org.matrix.msc3892.emotes")
 const COMPAT_STATE=new UnstableValue("m.room.clientemote_compatibility","org.matrix.msc3892.clientemote_compatibility")
+const SHORTCODE_REGEX=/[^a-zA-Z0-9]/g;
 interface IProps {
     roomId: string;
 }
@@ -234,8 +235,8 @@ export default class RoomEmoteSettings extends React.Component<IProps, IState> {
     private onEmoteChange = (e: React.ChangeEvent<HTMLInputElement>): void => {
         const id = e.target.getAttribute("id");
         const b = this.state.value;
-        b[id] = e.target.value;
-        this.setState({ value: b, EmoteFieldsTouched: { ...this.state.EmoteFieldsTouched, [id]: e.target.value } });
+        b[id] = e.target.value.replace(SHORTCODE_REGEX, "");
+        this.setState({ value: b, EmoteFieldsTouched: { ...this.state.EmoteFieldsTouched, [id]: e.target.value.replace(SHORTCODE_REGEX, "") } });
     };
 
     private onEmoteFileAdd = (e: React.ChangeEvent<HTMLInputElement>): void => {
@@ -271,9 +272,9 @@ export default class RoomEmoteSettings extends React.Component<IProps, IState> {
         //reader.readAsDataURL(file);
     };
     private onEmoteCodeAdd = (e: React.ChangeEvent<HTMLInputElement>): void => {
-        if (e.target.value.length > 0) {
+        if (e.target.value.replace(SHORTCODE_REGEX, "").length > 0) {
             const updatedCode = this.state.newEmoteCode;
-            updatedCode[e.target.getAttribute("data-index")]=e.target.value;
+            updatedCode[e.target.getAttribute("data-index")]=e.target.value.replace(SHORTCODE_REGEX, "");
             this.setState({
                 newEmoteCodeAdded: true,
                 newEmoteCode: updatedCode,
@@ -283,7 +284,7 @@ export default class RoomEmoteSettings extends React.Component<IProps, IState> {
             });
         } else {
             const updatedCode=this.state.newEmoteCode;
-            updatedCode[e.target.getAttribute("data-index")]=e.target.value;
+            updatedCode[e.target.getAttribute("data-index")]=e.target.value.replace(SHORTCODE_REGEX, "");
             this.setState({
                 newEmoteCodeAdded: false,
                 newEmoteCode: updatedCode,
