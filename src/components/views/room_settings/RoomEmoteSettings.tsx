@@ -29,7 +29,7 @@ import LabelledToggleSwitch from '../elements/LabelledToggleSwitch';
 import { stringify } from '../dialogs/devtools/Event';
 const EMOTES_STATE=new UnstableValue("m.room.emotes","org.matrix.msc3892.emotes")
 const COMPAT_STATE=new UnstableValue("m.room.clientemote_compatibility","org.matrix.msc3892.clientemote_compatibility")
-const SHORTCODE_REGEX=/[^a-zA-Z0-9]/g;
+const SHORTCODE_REGEX=/[^a-zA-Z0-9_]/g;
 interface IProps {
     roomId: string;
 }
