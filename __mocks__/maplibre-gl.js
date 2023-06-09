@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 const EventEmitter = require("events");
-const { LngLat, NavigationControl, LngLatBounds, AttributionControl } = require("maplibre-gl");
+const { LngLat, NavigationControl, LngLatBounds } = require("maplibre-gl");
 
 class MockMap extends EventEmitter {
     addControl = jest.fn();
@@ -28,6 +28,7 @@ class MockMap extends EventEmitter {
 }
 const MockMapInstance = new MockMap();
 
+class MockAttributionControl {}
 class MockGeolocateControl extends EventEmitter {
     trigger = jest.fn();
 }
@@ -43,5 +44,5 @@ module.exports = {
     LngLat,
     LngLatBounds,
     NavigationControl,
-    AttributionControl,
+    AttributionControl: MockAttributionControl,
 };

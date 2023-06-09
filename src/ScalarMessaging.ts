@@ -264,10 +264,36 @@ Get an openID token for the current user session.
 Request: No parameters
 Response:
  - The openId token object as described in https://spec.matrix.org/v1.2/client-server-api/#post_matrixclientv3useruseridopenidrequest_token
+
+send_event
+----------
+Sends an event in a room.
+
+Request:
+ - type is the event type to send.
+ - state_key is the state key to send. Omitted if not a state event.
+ - content is the event content to send.
+
+Response:
+ - room_id is the room ID where the event was sent.
+ - event_id is the event ID of the event which was sent.
+
+read_events
+-----------
+Read events from a room.
+
+Request:
+ - type is the event type to read.
+ - state_key is the state key to read, or `true` to read all events of the type. Omitted if not a state event.
+
+Response:
+ - events: Array of events. If none found, this will be an empty array.
+
 */
 
-import { MatrixEvent } from "matrix-js-sdk/src/models/event";
+import { IContent, MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { logger } from "matrix-js-sdk/src/logger";
+import { IEvent } from "matrix-js-sdk/src/matrix";
 
 import { MatrixClientPeg } from "./MatrixClientPeg";
 import dis from "./dispatcher/dispatcher";
@@ -295,6 +321,8 @@ enum Action {
     SetBotOptions = "set_bot_options",
     SetBotPower = "set_bot_power",
     GetOpenIdToken = "get_open_id_token",
+    SendEvent = "send_event",
+    ReadEvents = "read_events",
 }
 
 function sendResponse(event: MessageEvent<any>, res: any): void {
@@ -330,7 +358,7 @@ function inviteUser(event: MessageEvent<any>, roomId: string, userId: string): v
     if (room) {
         // if they are already invited or joined we can resolve immediately.
         const member = room.getMember(userId);
-        if (member && ["join", "invite"].includes(member.membership)) {
+        if (member && ["join", "invite"].includes(member.membership!)) {
             sendResponse(event, {
                 success: true,
             });
@@ -361,7 +389,7 @@ function kickUser(event: MessageEvent<any>, roomId: string, userId: string): voi
     if (room) {
         // if they are already not in the room we can resolve immediately.
         const member = room.getMember(userId);
-        if (!member || getEffectiveMembership(member.membership) === EffectiveMembership.Leave) {
+        if (!member || getEffectiveMembership(member.membership!) === EffectiveMembership.Leave) {
             sendResponse(event, {
                 success: true,
             });
@@ -383,6 +411,7 @@ function kickUser(event: MessageEvent<any>, roomId: string, userId: string): voi
 }
 
 function setWidget(event: MessageEvent<any>, roomId: string | null): void {
+    const client = MatrixClientPeg.get();
     const widgetId = event.data.widget_id;
     let widgetType = event.data.type;
     const widgetUrl = event.data.url;
@@ -430,7 +459,7 @@ function setWidget(event: MessageEvent<any>, roomId: string | null): void {
     widgetType = WidgetType.fromString(widgetType);
 
     if (userWidget) {
-        WidgetUtils.setUserWidget(widgetId, widgetType, widgetUrl, widgetName, widgetData)
+        WidgetUtils.setUserWidget(client, widgetId, widgetType, widgetUrl, widgetName, widgetData)
             .then(() => {
                 sendResponse(event, {
                     success: true,
@@ -444,10 +473,11 @@ function setWidget(event: MessageEvent<any>, roomId: string | null): void {
     } else {
         // Room widget
         if (!roomId) {
-            sendError(event, _t("Missing roomId."), null);
+            sendError(event, _t("Missing roomId."));
             return;
         }
         WidgetUtils.setRoomWidget(
+            client,
             roomId,
             widgetId,
             widgetType,
@@ -468,13 +498,13 @@ function setWidget(event: MessageEvent<any>, roomId: string | null): void {
     }
 }
 
-function getWidgets(event: MessageEvent<any>, roomId: string): void {
+function getWidgets(event: MessageEvent<any>, roomId: string | null): void {
     const client = MatrixClientPeg.get();
     if (!client) {
         sendError(event, _t("You need to be logged in."));
         return;
     }
-    let widgetStateEvents = [];
+    let widgetStateEvents: Partial<IEvent>[] = [];
 
     if (roomId) {
         const room = client.getRoom(roomId);
@@ -488,7 +518,7 @@ function getWidgets(event: MessageEvent<any>, roomId: string): void {
     }
 
     // Add user widgets (not linked to a specific room)
-    const userWidgets = WidgetUtils.getUserWidgetsArray();
+    const userWidgets = WidgetUtils.getUserWidgetsArray(client);
     widgetStateEvents = widgetStateEvents.concat(userWidgets);
 
     sendResponse(event, widgetStateEvents);
@@ -647,7 +677,7 @@ function canSendEvent(event: MessageEvent<any>, roomId: string): void {
         sendError(event, _t("You are not in this room."));
         return;
     }
-    const me = client.credentials.userId;
+    const me = client.credentials.userId!;
 
     let canSend = false;
     if (isState) {
@@ -683,7 +713,7 @@ function returnStateEvent(event: MessageEvent<any>, roomId: string, eventType: s
     sendResponse(event, stateEvent.getContent());
 }
 
-async function getOpenIdToken(event: MessageEvent<any>) {
+async function getOpenIdToken(event: MessageEvent<any>): Promise<void> {
     try {
         const tokenObject = await MatrixClientPeg.get().getOpenIdToken();
         sendResponse(event, tokenObject);
@@ -693,10 +723,144 @@ async function getOpenIdToken(event: MessageEvent<any>) {
     }
 }
 
+async function sendEvent(
+    event: MessageEvent<{
+        type: string;
+        state_key?: string;
+        content?: IContent;
+    }>,
+    roomId: string,
+): Promise<void> {
+    const eventType = event.data.type;
+    const stateKey = event.data.state_key;
+    const content = event.data.content;
+
+    if (typeof eventType !== "string") {
+        sendError(event, _t("Failed to send event"), new Error("Invalid 'type' in request"));
+        return;
+    }
+    const allowedEventTypes = ["m.widgets", "im.vector.modular.widgets", "io.element.integrations.installations"];
+    if (!allowedEventTypes.includes(eventType)) {
+        sendError(event, _t("Failed to send event"), new Error("Disallowed 'type' in request"));
+        return;
+    }
+
+    if (!content || typeof content !== "object") {
+        sendError(event, _t("Failed to send event"), new Error("Invalid 'content' in request"));
+        return;
+    }
+
+    const client = MatrixClientPeg.get();
+    if (!client) {
+        sendError(event, _t("You need to be logged in."));
+        return;
+    }
+
+    const room = client.getRoom(roomId);
+    if (!room) {
+        sendError(event, _t("This room is not recognised."));
+        return;
+    }
+
+    if (stateKey !== undefined) {
+        // state event
+        try {
+            const res = await client.sendStateEvent(roomId, eventType, content, stateKey);
+            sendResponse(event, {
+                room_id: roomId,
+                event_id: res.event_id,
+            });
+        } catch (e) {
+            sendError(event, _t("Failed to send event"), e as Error);
+            return;
+        }
+    } else {
+        // message event
+        sendError(event, _t("Failed to send event"), new Error("Sending message events is not implemented"));
+        return;
+    }
+}
+
+async function readEvents(
+    event: MessageEvent<{
+        type: string;
+        state_key?: string | boolean;
+        limit?: number;
+    }>,
+    roomId: string,
+): Promise<void> {
+    const eventType = event.data.type;
+    const stateKey = event.data.state_key;
+    const limit = event.data.limit;
+
+    if (typeof eventType !== "string") {
+        sendError(event, _t("Failed to read events"), new Error("Invalid 'type' in request"));
+        return;
+    }
+    const allowedEventTypes = [
+        "m.room.power_levels",
+        "m.room.encryption",
+        "m.room.member",
+        "m.room.name",
+        "m.widgets",
+        "im.vector.modular.widgets",
+        "io.element.integrations.installations",
+    ];
+    if (!allowedEventTypes.includes(eventType)) {
+        sendError(event, _t("Failed to read events"), new Error("Disallowed 'type' in request"));
+        return;
+    }
+
+    let effectiveLimit: number;
+    if (limit !== undefined) {
+        if (typeof limit !== "number" || limit < 0) {
+            sendError(event, _t("Failed to read events"), new Error("Invalid 'limit' in request"));
+            return;
+        }
+        effectiveLimit = Math.min(limit, Number.MAX_SAFE_INTEGER);
+    } else {
+        effectiveLimit = Number.MAX_SAFE_INTEGER;
+    }
+
+    const client = MatrixClientPeg.get();
+    if (!client) {
+        sendError(event, _t("You need to be logged in."));
+        return;
+    }
+
+    const room = client.getRoom(roomId);
+    if (!room) {
+        sendError(event, _t("This room is not recognised."));
+        return;
+    }
+
+    if (stateKey !== undefined) {
+        // state events
+        if (typeof stateKey !== "string" && stateKey !== true) {
+            sendError(event, _t("Failed to read events"), new Error("Invalid 'state_key' in request"));
+            return;
+        }
+        // When `true` is passed for state key, get events with any state key.
+        const effectiveStateKey = stateKey === true ? undefined : stateKey;
+
+        let events: MatrixEvent[] = [];
+        events = events.concat(room.currentState.getStateEvents(eventType, effectiveStateKey as string) || []);
+        events = events.slice(0, effectiveLimit);
+
+        sendResponse(event, {
+            events: events.map((e) => e.getEffectiveEvent()),
+        });
+        return;
+    } else {
+        // message events
+        sendError(event, _t("Failed to read events"), new Error("Reading message events is not implemented"));
+        return;
+    }
+}
+
 const onMessage = function (event: MessageEvent<any>): void {
     if (!event.origin) {
-        // stupid chrome
-        // @ts-ignore
+        // @ts-ignore - stupid chrome
         event.origin = event.originalEvent.origin;
     }
 
@@ -704,15 +868,15 @@ const onMessage = function (event: MessageEvent<any>): void {
     // This means the URL could contain a path (like /develop) and still be used
     // to validate event origins, which do not specify paths.
     // (See https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage)
-    let configUrl;
+    let configUrl: URL | undefined;
     try {
-        if (!openManagerUrl) openManagerUrl = IntegrationManagers.sharedInstance().getPrimaryManager().uiUrl;
-        configUrl = new URL(openManagerUrl);
+        if (!openManagerUrl) openManagerUrl = IntegrationManagers.sharedInstance().getPrimaryManager()?.uiUrl;
+        configUrl = new URL(openManagerUrl!);
     } catch (e) {
         // No integrations UI URL, ignore silently.
         return;
     }
-    let eventOriginUrl;
+    let eventOriginUrl: URL;
     try {
         eventOriginUrl = new URL(event.origin);
     } catch (e) {
@@ -786,6 +950,12 @@ const onMessage = function (event: MessageEvent<any>): void {
     } else if (event.data.action === Action.CanSendEvent) {
         canSendEvent(event, roomId);
         return;
+    } else if (event.data.action === Action.SendEvent) {
+        sendEvent(event, roomId);
+        return;
+    } else if (event.data.action === Action.ReadEvents) {
+        readEvents(event, roomId);
+        return;
     }
 
     if (!userId) {
@@ -818,7 +988,7 @@ const onMessage = function (event: MessageEvent<any>): void {
 };
 
 let listenerCount = 0;
-let openManagerUrl: string | null = null;
+let openManagerUrl: string | undefined;
 
 export function startListening(): void {
     if (listenerCount === 0) {

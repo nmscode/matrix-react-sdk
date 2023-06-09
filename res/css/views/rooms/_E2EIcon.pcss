@@ -30,10 +30,7 @@ limitations under the License.
         content: "";
         display: block;
         position: absolute;
-        top: 0;
-        bottom: 0;
-        left: 0;
-        right: 0;
+        inset: 0;
         mask-repeat: no-repeat;
         mask-position: center;
         mask-size: contain;
@@ -66,7 +63,7 @@ limitations under the License.
 
 .mx_E2EIcon_warning::after {
     mask-image: url("$(res)/img/e2e/warning.svg");
-    background-color: $alert;
+    background-color: $e2e-warning-color;
 }
 
 .mx_E2EIcon_normal::after {
@@ -76,5 +73,5 @@ limitations under the License.
 
 .mx_E2EIcon_verified::after {
     mask-image: url("$(res)/img/e2e/verified.svg");
-    background-color: $accent;
+    background-color: $e2e-verified-color;
 }

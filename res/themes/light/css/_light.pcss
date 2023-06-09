@@ -1,20 +1,17 @@
 /* Nunito and Inter lacks combining diacritics, so these will fall through
    to the next font. Helevetica's diacritics sometimes do not combine
    nicely (on OSX, at least) and result in a huge horizontal mess.
-   Arial empirically gets it right, hence prioritising Arial here.
-   We also include STIXGeneral explicitly to support a wider range
-   of combining diacritics (Chrome fails without it, as per
-   https://bugs.chromium.org/p/chromium/issues/detail?id=1328898) */
+   Arial empirically gets it right, hence prioritising Arial here. */
 /* We fall through to Twemoji for emoji rather than falling through
    to native Emoji fonts (if any) to ensure cross-browser consistency */
 /* Noto Color Emoji contains digits, in fixed-width, therefore causing
    digits in flowed text to stand out.
    TODO: Consider putting all emoji fonts to the end rather than the front. */
-$font-family: "Inter", "Twemoji", "Apple Color Emoji", "Segoe UI Emoji", "STIXGeneral", "Arial", "Helvetica", sans-serif,
+$font-family: "Inter", "Twemoji", "Apple Color Emoji", "Segoe UI Emoji", "Arial", "Helvetica", sans-serif,
     "Noto Color Emoji";
 
-$monospace-font-family: "Inconsolata", "Twemoji", "Apple Color Emoji", "Segoe UI Emoji", "STIXGeneral", "Courier",
-    monospace, "Noto Color Emoji";
+$monospace-font-family: "Inconsolata", "Twemoji", "Apple Color Emoji", "Segoe UI Emoji", "Courier", monospace,
+    "Noto Color Emoji";
 
 /* Colors from Figma Compound https://www.figma.com/file/X4XTH9iS2KGJ2wFKDqkyed/Compound?node-id=559%3A120 */
 /* ******************** */
@@ -38,6 +35,7 @@ $space-nav: rgba($tertiary-content, 0.15);
 $accent: #0dbd8b;
 $alert: #ff5b55;
 $links: #0086e6;
+$link-external: #0467dd;
 
 $username-variant1-color: #368bd6;
 $username-variant2-color: #ac3ba8;
@@ -183,10 +181,10 @@ $roomtile-default-badge-bg-color: $muted-fg-color;
 
 /* e2e */
 /* ******************** */
-$e2e-verified-color: #76cfa5; /* N.B. *NOT* the same as $accent */
+$e2e-verified-color: #0dbd8b;
 $e2e-unknown-color: #e8bf37;
 $e2e-unverified-color: #e8bf37;
-$e2e-warning-color: #ba6363;
+$e2e-warning-color: #ff5b55;
 $e2e-verified-color-light: rgba($e2e-verified-color, 0.06);
 $e2e-warning-color-light: rgba($e2e-warning-color, 0.06);
 /* ******************** */
@@ -273,9 +271,11 @@ $video-feed-secondary-background: #394049; /* XXX: Color from dark theme */
 $voipcall-plinth-color: $system;
 
 /* All of these are from dark theme */
-$call-lobby-system: #21262c;
-$call-lobby-background: #15191e;
-$call-lobby-primary-content: #ffffff;
+$call-system: #21262c;
+$call-background: #15191e;
+$call-primary-content: #ffffff;
+/* This one is from light theme */
+$call-light-quaternary-content: #c1c6cd;
 /* ******************** */
 
 /* One-off colors */
@@ -290,6 +290,8 @@ $composer-shadow-color: rgba(0, 0, 0, 0.04);
 $breadcrumb-placeholder-bg-color: #e8eef5;
 $theme-button-bg-color: $quinary-content;
 $resend-button-divider-color: $input-darker-bg-color;
+$inlinecode-border-color: $quinary-content;
+$inlinecode-background-color: $system;
 $codeblock-background-color: $header-panel-bg-color;
 $scrollbar-thumb-color: rgba(0, 0, 0, 0.2);
 $selected-color: $secondary-accent-color;
@@ -327,52 +329,6 @@ $location-live-secondary-color: #deddfd;
 /* ******************** */
 $live-badge-color: #ffffff;
 /* ******************** */
-
-/* Mixins */
-/* ******************** */
-@define-mixin mx_DialogButton {
-    /* align images in buttons (eg spinners) */
-    vertical-align: middle;
-    border: 0px;
-    border-radius: 8px;
-    font-family: $font-family;
-    font-size: $font-14px;
-    color: $button-fg-color;
-    background-color: $accent;
-    width: auto;
-    padding: 7px;
-    padding-left: 1.5em;
-    padding-right: 1.5em;
-    cursor: pointer;
-    display: inline-block;
-    outline: none;
-}
-
-@define-mixin mx_DialogButton_hover {
-}
-
-@define-mixin mx_DialogButton_danger {
-    background-color: $accent;
-}
-
-@define-mixin mx_DialogButton_small {
-    @mixin mx_DialogButton;
-    font-size: $font-15px;
-    padding: 0px 1.5em 0px 1.5em;
-}
-
-@define-mixin mx_DialogButton_secondary {
-    /* flip colours for the secondary ones */
-    font-weight: 600;
-    border: 1px solid $accent !important;
-    color: $accent;
-    background-color: $button-secondary-bg-color;
-}
-
-@define-mixin mx_Dialog_link {
-    color: $accent;
-    text-decoration: none;
-}
 
 body {
     color-scheme: light;

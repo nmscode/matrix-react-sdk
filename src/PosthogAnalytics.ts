@@ -132,9 +132,9 @@ export class PosthogAnalytics {
     private anonymity = Anonymity.Disabled;
     // set true during the constructor if posthog config is present, otherwise false
     private readonly enabled: boolean = false;
-    private static _instance = null;
-    private platformSuperProperties = {};
-    private static ANALYTICS_EVENT_TYPE = "im.vector.analytics";
+    private static _instance: PosthogAnalytics | null = null;
+    private platformSuperProperties: Properties = {};
+    public static readonly ANALYTICS_EVENT_TYPE = "im.vector.analytics";
     private propertiesForNextEvent: Partial<Record<"$set" | "$set_once", UserProperties>> = {};
     private userPropertyCache: UserProperties = {};
     private authenticationType: Signup["authenticationType"] = "Other";
@@ -146,7 +146,7 @@ export class PosthogAnalytics {
         return this._instance;
     }
 
-    constructor(private readonly posthog: PostHog) {
+    public constructor(private readonly posthog: PostHog) {
         const posthogConfig = SdkConfig.getObject("posthog");
         if (posthogConfig) {
             this.posthog.init(posthogConfig.get("project_api_key"), {
@@ -175,7 +175,7 @@ export class PosthogAnalytics {
         this.onLayoutUpdated();
     }
 
-    private onLayoutUpdated = () => {
+    private onLayoutUpdated = (): void => {
         let layout: UserProperties["WebLayout"];
 
         switch (SettingsStore.getValue("layout")) {
@@ -195,7 +195,7 @@ export class PosthogAnalytics {
         this.setProperty("WebLayout", layout);
     };
 
-    private onAction = (payload: ActionPayload) => {
+    private onAction = (payload: ActionPayload): void => {
         if (payload.action !== Action.SettingUpdated) return;
         const settingsPayload = payload as SettingUpdatedPayload;
         if (["layout", "useCompactLayout"].includes(settingsPayload.settingName)) {
@@ -232,17 +232,17 @@ export class PosthogAnalytics {
         return properties;
     };
 
-    private registerSuperProperties(properties: Properties) {
+    private registerSuperProperties(properties: Properties): void {
         if (this.enabled) {
             this.posthog.register(properties);
         }
     }
 
-    private static async getPlatformProperties(): Promise<PlatformProperties> {
+    private static async getPlatformProperties(): Promise<Partial<PlatformProperties>> {
         const platform = PlatformPeg.get();
-        let appVersion: string;
+        let appVersion: string | undefined;
         try {
-            appVersion = await platform.getAppVersion();
+            appVersion = await platform?.getAppVersion();
         } catch (e) {
             // this happens if no version is set i.e. in dev
             appVersion = "unknown";
@@ -250,12 +250,12 @@ export class PosthogAnalytics {
 
         return {
             appVersion,
-            appPlatform: platform.getHumanReadableName(),
+            appPlatform: platform?.getHumanReadableName(),
         };
     }
 
-    // eslint-disable-nextline no-unused-varsx
-    private capture(eventName: string, properties: Properties, options?: IPostHogEventOptions) {
+    // eslint-disable-nextline no-unused-vars
+    private capture(eventName: string, properties: Properties, options?: IPostHogEventOptions): void {
         if (!this.enabled) {
             return;
         }
@@ -312,6 +312,14 @@ export class PosthogAnalytics {
                         Object.assign({ id: analyticsID }, accountData),
                     );
                 }
+                if (this.posthog.get_distinct_id() === analyticsID) {
+                    // No point identifying again
+                    return;
+                }
+                if (this.posthog.persistence.get_user_state() === "identified") {
+                    // Analytics ID has changed, reset as Posthog will refuse to merge in this case
+                    this.posthog.reset();
+                }
                 this.posthog.identify(analyticsID);
             } catch (e) {
                 // The above could fail due to network requests, but not essential to starting the application,
@@ -367,12 +375,12 @@ export class PosthogAnalytics {
         this.registerSuperProperties(this.platformSuperProperties);
     }
 
-    public async updateAnonymityFromSettings(pseudonymousOptIn: boolean): Promise<void> {
+    public async updateAnonymityFromSettings(client: MatrixClient, pseudonymousOptIn: boolean): Promise<void> {
         // Update this.anonymity based on the user's analytics opt-in settings
         const anonymity = pseudonymousOptIn ? Anonymity.Pseudonymous : Anonymity.Disabled;
         this.setAnonymity(anonymity);
         if (anonymity === Anonymity.Pseudonymous) {
-            await this.identifyUser(MatrixClientPeg.get(), PosthogAnalytics.getRandomAnalyticsId);
+            await this.identifyUser(client, PosthogAnalytics.getRandomAnalyticsId);
             if (MatrixClientPeg.currentUserIsJustRegistered()) {
                 this.trackNewUserEvent();
             }
@@ -383,7 +391,7 @@ export class PosthogAnalytics {
         }
     }
 
-    public startListeningToSettingsChanges(): void {
+    public startListeningToSettingsChanges(client: MatrixClient): void {
         // Listen to account data changes from sync so we can observe changes to relevant flags and update.
         // This is called -
         //  * On page load, when the account data is first received by sync
@@ -396,7 +404,7 @@ export class PosthogAnalytics {
             "pseudonymousAnalyticsOptIn",
             null,
             (originalSettingName, changedInRoomId, atLevel, newValueAtLevel, newValue) => {
-                this.updateAnonymityFromSettings(!!newValue);
+                this.updateAnonymityFromSettings(client, !!newValue);
             },
         );
     }
@@ -411,7 +419,7 @@ export class PosthogAnalytics {
         // All other scenarios should not track a user before they have given
         // explicit consent that they are ok with their analytics data being collected
         const options: IPostHogEventOptions = {};
-        const registrationTime = parseInt(window.localStorage.getItem("mx_registration_time"), 10);
+        const registrationTime = parseInt(window.localStorage.getItem("mx_registration_time")!, 10);
         if (!isNaN(registrationTime)) {
             options.timestamp = new Date(registrationTime);
         }

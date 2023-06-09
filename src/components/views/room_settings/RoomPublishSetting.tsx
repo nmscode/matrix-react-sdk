@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React from "react";
-import { Visibility } from "matrix-js-sdk/src/@types/partials";
+import { JoinRule, Visibility } from "matrix-js-sdk/src/@types/partials";
 
 import LabelledToggleSwitch from "../elements/LabelledToggleSwitch";
 import { _t } from "../../../languageHandler";
@@ -33,15 +33,15 @@ interface IState {
 }
 
 export default class RoomPublishSetting extends React.PureComponent<IProps, IState> {
-    constructor(props, context) {
-        super(props, context);
+    public constructor(props: IProps) {
+        super(props);
 
         this.state = {
             isRoomPublished: false,
         };
     }
 
-    private onRoomPublishChange = (e) => {
+    private onRoomPublishChange = (): void => {
         const valueBefore = this.state.isRoomPublished;
         const newValue = !valueBefore;
         this.setState({ isRoomPublished: newValue });
@@ -55,18 +55,18 @@ export default class RoomPublishSetting extends React.PureComponent<IProps, ISta
             });
     };
 
-    componentDidMount() {
+    public componentDidMount(): void {
         const client = MatrixClientPeg.get();
         client.getRoomDirectoryVisibility(this.props.roomId).then((result) => {
             this.setState({ isRoomPublished: result.visibility === "public" });
         });
     }
 
-    render() {
+    public render(): React.ReactNode {
         const client = MatrixClientPeg.get();
 
         const room = client.getRoom(this.props.roomId);
-        const isRoomPublishable = room.getJoinRule() !== "invite";
+        const isRoomPublishable = room && room.getJoinRule() !== JoinRule.Invite;
 
         const enabled =
             (DirectoryCustomisations.requireCanonicalAliasAccessToPublish?.() === false ||

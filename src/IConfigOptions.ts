@@ -99,7 +99,7 @@ export interface IConfigOptions {
     features?: Record<string, boolean>; // <FeatureName, EnabledBool>
 
     bug_report_endpoint_url?: string; // omission disables bug reporting
-    uisi_autorageshake_app?: string;
+    uisi_autorageshake_app?: string; // defaults to "element-auto-uisi"
     sentry?: {
         dsn: string;
         environment?: string; // "production", etc
@@ -148,19 +148,6 @@ export interface IConfigOptions {
     analytics_owner?: string; // defaults to `brand`
     privacy_policy_url?: string; // location for cookie policy
 
-    // Server hosting upsell options
-    hosting_signup_link?: string; // slightly different from `host_signup`
-    host_signup?: {
-        brand?: string; // acts as the enabled flag too (truthy == show)
-
-        // Required-ness denotes when `brand` is truthy
-        cookie_policy_url: string;
-        privacy_policy_url: string;
-        terms_of_service_url: string;
-        url: string;
-        domains?: string[];
-    };
-
     enable_presence_by_hs_url?: Record<string, boolean>; // <HomeserverName, Enabled>
 
     terms_and_conditions_links?: { url: string; text: string }[];
@@ -169,10 +156,18 @@ export interface IConfigOptions {
         inline?: {
             left?: string;
             right?: string;
+            pattern?: {
+                tex?: string;
+                latex?: string;
+            };
         };
         display?: {
             left?: string;
             right?: string;
+            pattern?: {
+                tex?: string;
+                latex?: string;
+            };
         };
     };
 
@@ -190,6 +185,11 @@ export interface IConfigOptions {
         title: string;
         description: string;
         show_once?: boolean;
+    };
+
+    feedback: {
+        existing_issues_url: string;
+        new_issue_url: string;
     };
 }
 

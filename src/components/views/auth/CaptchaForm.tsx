@@ -34,14 +34,14 @@ interface ICaptchaFormState {
  * A pure UI component which displays a captcha form.
  */
 export default class CaptchaForm extends React.Component<ICaptchaFormProps, ICaptchaFormState> {
-    static defaultProps = {
+    public static defaultProps = {
         onCaptchaResponse: () => {},
     };
 
     private captchaWidgetId?: string;
     private recaptchaContainer = createRef<HTMLDivElement>();
 
-    constructor(props: ICaptchaFormProps) {
+    public constructor(props: ICaptchaFormProps) {
         super(props);
 
         this.state = {
@@ -49,7 +49,7 @@ export default class CaptchaForm extends React.Component<ICaptchaFormProps, ICap
         };
     }
 
-    componentDidMount() {
+    public componentDidMount(): void {
         // Just putting a script tag into the returned jsx doesn't work, annoyingly,
         // so we do this instead.
         if (this.isRecaptchaReady()) {
@@ -65,11 +65,11 @@ export default class CaptchaForm extends React.Component<ICaptchaFormProps, ICap
                 "src",
                 `https://www.recaptcha.net/recaptcha/api.js?onload=mxOnRecaptchaLoaded&render=explicit`,
             );
-            this.recaptchaContainer.current.appendChild(scriptTag);
+            this.recaptchaContainer.current?.appendChild(scriptTag);
         }
     }
 
-    componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.resetRecaptcha();
     }
 
@@ -82,7 +82,7 @@ export default class CaptchaForm extends React.Component<ICaptchaFormProps, ICap
         );
     }
 
-    private renderRecaptcha(divId: string) {
+    private renderRecaptcha(divId: string): void {
         if (!this.isRecaptchaReady()) {
             logger.error("grecaptcha not loaded!");
             throw new Error("Recaptcha did not load successfully");
@@ -91,29 +91,29 @@ export default class CaptchaForm extends React.Component<ICaptchaFormProps, ICap
         const publicKey = this.props.sitePublicKey;
         if (!publicKey) {
             logger.error("No public key for recaptcha!");
-            throw new Error("This server has not supplied enough information for Recaptcha " + "authentication");
+            throw new Error("This server has not supplied enough information for Recaptcha authentication");
         }
 
-        logger.info("Rendering to %s", divId);
-        this.captchaWidgetId = global.grecaptcha.render(divId, {
+        logger.info(`Rendering to ${divId}`);
+        this.captchaWidgetId = global.grecaptcha?.render(divId, {
             sitekey: publicKey,
             callback: this.props.onCaptchaResponse,
         });
     }
 
-    private resetRecaptcha() {
+    private resetRecaptcha(): void {
         if (this.captchaWidgetId) {
             global?.grecaptcha?.reset(this.captchaWidgetId);
         }
     }
 
-    private onCaptchaLoaded() {
+    private onCaptchaLoaded(): void {
         logger.log("Loaded recaptcha script.");
         try {
             this.renderRecaptcha(DIV_ID);
             // clear error if re-rendered
             this.setState({
-                errorText: null,
+                errorText: undefined,
             });
         } catch (e) {
             this.setState({
@@ -122,8 +122,8 @@ export default class CaptchaForm extends React.Component<ICaptchaFormProps, ICap
         }
     }
 
-    render() {
-        let error = null;
+    public render(): React.ReactNode {
+        let error: JSX.Element | undefined;
         if (this.state.errorText) {
             error = <div className="error">{this.state.errorText}</div>;
         }

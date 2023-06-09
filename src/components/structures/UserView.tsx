@@ -18,6 +18,7 @@ limitations under the License.
 import React from "react";
 import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 import { RoomMember } from "matrix-js-sdk/src/models/room-member";
+import { MatrixClient } from "matrix-js-sdk/src/matrix";
 
 import { MatrixClientPeg } from "../../MatrixClientPeg";
 import Modal from "../../Modal";
@@ -31,7 +32,7 @@ import { RightPanelPhases } from "../../stores/right-panel/RightPanelStorePhases
 import { UserOnboardingPage } from "../views/user-onboarding/UserOnboardingPage";
 
 interface IProps {
-    userId?: string;
+    userId: string;
     resizeNotifier: ResizeNotifier;
 }
 
@@ -41,7 +42,7 @@ interface IState {
 }
 
 export default class UserView extends React.Component<IProps, IState> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
         this.state = {
             loading: true,
@@ -66,7 +67,7 @@ export default class UserView extends React.Component<IProps, IState> {
     private async loadProfileInfo(): Promise<void> {
         const cli = MatrixClientPeg.get();
         this.setState({ loading: true });
-        let profileInfo;
+        let profileInfo: Awaited<ReturnType<MatrixClient["getProfileInfo"]>>;
         try {
             profileInfo = await cli.getProfileInfo(this.props.userId);
         } catch (err) {
@@ -78,12 +79,13 @@ export default class UserView extends React.Component<IProps, IState> {
             return;
         }
         const fakeEvent = new MatrixEvent({ type: "m.room.member", content: profileInfo });
-        const member = new RoomMember(null, this.props.userId);
+        // We pass an empty string room ID here, this is slight abuse of the class to simplify code
+        const member = new RoomMember("", this.props.userId);
         member.setMembershipEvent(fakeEvent);
         this.setState({ member, loading: false });
     }
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         if (this.state.loading) {
             return <Spinner />;
         } else if (this.state.member) {

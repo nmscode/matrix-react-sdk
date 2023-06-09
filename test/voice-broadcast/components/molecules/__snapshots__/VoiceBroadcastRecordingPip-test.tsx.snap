@@ -29,9 +29,13 @@ exports[`VoiceBroadcastRecordingPip when rendering a paused recording should ren
           tabindex="0"
         >
           <div
-            class="mx_VoiceBroadcastHeader_room"
+            class="mx_VoiceBroadcastHeader_room_wrapper"
           >
-            My room
+            <div
+              class="mx_VoiceBroadcastHeader_room"
+            >
+              My room
+            </div>
           </div>
         </div>
         <div
@@ -40,11 +44,12 @@ exports[`VoiceBroadcastRecordingPip when rendering a paused recording should ren
           <div
             class="mx_Icon mx_Icon_16"
           />
-          <span
+          <time
             class="mx_Clock"
+            datetime="PT4H"
           >
             4h 0m 0s left
-          </span>
+          </time>
         </div>
       </div>
       <div
@@ -69,7 +74,7 @@ exports[`VoiceBroadcastRecordingPip when rendering a paused recording should ren
         tabindex="0"
       >
         <div
-          class="mx_Icon mx_Icon_16"
+          class="mx_Icon mx_Icon_12"
         />
       </div>
       <div
@@ -126,9 +131,13 @@ exports[`VoiceBroadcastRecordingPip when rendering a started recording should re
           tabindex="0"
         >
           <div
-            class="mx_VoiceBroadcastHeader_room"
+            class="mx_VoiceBroadcastHeader_room_wrapper"
           >
-            My room
+            <div
+              class="mx_VoiceBroadcastHeader_room"
+            >
+              My room
+            </div>
           </div>
         </div>
         <div
@@ -137,11 +146,12 @@ exports[`VoiceBroadcastRecordingPip when rendering a started recording should re
           <div
             class="mx_Icon mx_Icon_16"
           />
-          <span
+          <time
             class="mx_Clock"
+            datetime="PT4H"
           >
             4h 0m 0s left
-          </span>
+          </time>
         </div>
       </div>
       <div
@@ -166,7 +176,7 @@ exports[`VoiceBroadcastRecordingPip when rendering a started recording should re
         tabindex="0"
       >
         <div
-          class="mx_Icon mx_Icon_16"
+          class="mx_Icon mx_Icon_12"
         />
       </div>
       <div

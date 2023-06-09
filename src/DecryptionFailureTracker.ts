@@ -23,7 +23,7 @@ import { PosthogAnalytics } from "./PosthogAnalytics";
 export class DecryptionFailure {
     public readonly ts: number;
 
-    constructor(public readonly failedEventId: string, public readonly errorCode: string) {
+    public constructor(public readonly failedEventId: string, public readonly errorCode: string) {
         this.ts = Date.now();
     }
 }
@@ -83,18 +83,18 @@ export class DecryptionFailureTracker {
     public trackedEvents: Set<string> = new Set();
 
     // Set to an interval ID when `start` is called
-    public checkInterval: number = null;
-    public trackInterval: number = null;
+    public checkInterval: number | null = null;
+    public trackInterval: number | null = null;
 
     // Spread the load on `Analytics` by tracking at a low frequency, `TRACK_INTERVAL_MS`.
-    static TRACK_INTERVAL_MS = 60000;
+    public static TRACK_INTERVAL_MS = 60000;
 
     // Call `checkFailures` every `CHECK_INTERVAL_MS`.
-    static CHECK_INTERVAL_MS = 5000;
+    public static CHECK_INTERVAL_MS = 5000;
 
     // Give events a chance to be decrypted by waiting `GRACE_PERIOD_MS` before counting
     // the failure in `failureCounts`.
-    static GRACE_PERIOD_MS = 4000;
+    public static GRACE_PERIOD_MS = 4000;
 
     /**
      * Create a new DecryptionFailureTracker.
@@ -138,7 +138,7 @@ export class DecryptionFailureTracker {
             return;
         }
         if (err) {
-            this.addDecryptionFailure(new DecryptionFailure(e.getId(), err.code));
+            this.addDecryptionFailure(new DecryptionFailure(e.getId()!, err.code));
         } else {
             // Could be an event in the failures, remove it
             this.removeDecryptionFailuresForEvent(e);
@@ -146,7 +146,7 @@ export class DecryptionFailureTracker {
     }
 
     public addVisibleEvent(e: MatrixEvent): void {
-        const eventId = e.getId();
+        const eventId = e.getId()!;
 
         if (this.trackedEvents.has(eventId)) {
             return;
@@ -154,7 +154,7 @@ export class DecryptionFailureTracker {
 
         this.visibleEvents.add(eventId);
         if (this.failures.has(eventId) && !this.visibleFailures.has(eventId)) {
-            this.visibleFailures.set(eventId, this.failures.get(eventId));
+            this.visibleFailures.set(eventId, this.failures.get(eventId)!);
         }
     }
 
@@ -172,7 +172,7 @@ export class DecryptionFailureTracker {
     }
 
     public removeDecryptionFailuresForEvent(e: MatrixEvent): void {
-        const eventId = e.getId();
+        const eventId = e.getId()!;
         this.failures.delete(eventId);
         this.visibleFailures.delete(eventId);
     }
@@ -193,8 +193,8 @@ export class DecryptionFailureTracker {
      * Clear state and stop checking for and tracking failures.
      */
     public stop(): void {
-        clearInterval(this.checkInterval);
-        clearInterval(this.trackInterval);
+        if (this.checkInterval) clearInterval(this.checkInterval);
+        if (this.trackInterval) clearInterval(this.trackInterval);
 
         this.failures = new Map();
         this.visibleEvents = new Set();

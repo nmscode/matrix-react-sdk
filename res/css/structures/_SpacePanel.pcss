@@ -101,6 +101,8 @@ $activeBorderColor: $primary-content;
 
     .mx_SpaceItem.collapsed {
         & > .mx_SpaceButton > .mx_SpaceButton_toggleCollapse {
+            padding: 0 10px;
+            margin: 0 -10px;
             transform: rotate(-90deg);
         }
 
@@ -111,12 +113,6 @@ $activeBorderColor: $primary-content;
 
     .mx_SpaceItem_new {
         position: relative;
-
-        .mx_BetaDot {
-            position: absolute;
-            left: 33px;
-            top: -5px;
-        }
     }
 
     .mx_SpaceItem:not(.hasSubSpaces) > .mx_SpaceButton {
@@ -167,6 +163,7 @@ $activeBorderColor: $primary-content;
 
         .mx_SpaceButton_toggleCollapse {
             width: $gutterSize;
+            padding: 10px 0;
             min-width: $gutterSize;
             height: 20px;
             mask-position: center;
@@ -279,7 +276,7 @@ $activeBorderColor: $primary-content;
             border-radius: 8px;
             background-color: $panel-actions;
             font-size: $font-15px !important; /* override inline style */
-            font-weight: $font-semi-bold;
+            font-weight: var(--font-semi-bold);
             line-height: $font-18px;
 
             & + .mx_BaseAvatar_image {
@@ -383,7 +380,7 @@ $activeBorderColor: $primary-content;
 
     .mx_SpacePanel_contextMenu_header {
         margin: 12px 16px 12px;
-        font-weight: $font-semi-bold;
+        font-weight: var(--font-semi-bold);
         font-size: $font-15px;
         line-height: $font-18px;
         overflow: hidden;
@@ -435,7 +432,7 @@ $activeBorderColor: $primary-content;
         color: $tertiary-content;
         font-size: $font-10px;
         line-height: $font-12px;
-        font-weight: $font-semi-bold;
+        font-weight: var(--font-semi-bold);
         //margin-left: 8px;
     }
 }

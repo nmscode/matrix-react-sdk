@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useContext } from "react";
+import React, { ReactNode, useContext } from "react";
 import { RoomMember } from "matrix-js-sdk/src/models/room-member";
 import { ResizeMethod } from "matrix-js-sdk/src/@types/partials";
 
@@ -33,8 +33,6 @@ interface IProps extends Omit<React.ComponentProps<typeof BaseAvatar>, "name" | 
     width: number;
     height: number;
     resizeMethod?: ResizeMethod;
-    // The onClick to give the avatar
-    onClick?: React.MouseEventHandler;
     // Whether the onClick of the avatar should be overridden to dispatch `Action.ViewUser`
     viewUserOnClick?: boolean;
     pushUserOnClick?: boolean;
@@ -42,6 +40,7 @@ interface IProps extends Omit<React.ComponentProps<typeof BaseAvatar>, "name" | 
     style?: any;
     forceHistorical?: boolean; // true to deny `useOnlyCurrentProfiles` usage. Default false.
     hideTitle?: boolean;
+    children?: ReactNode;
 }
 
 export default function MemberAvatar({
@@ -54,7 +53,7 @@ export default function MemberAvatar({
     hideTitle,
     member: propsMember,
     ...props
-}: IProps) {
+}: IProps): JSX.Element {
     const card = useContext(CardContext);
 
     const member = useRoomMemberProfile({
@@ -65,7 +64,7 @@ export default function MemberAvatar({
 
     const name = member?.name ?? fallbackUserId;
     let title: string | undefined = props.title;
-    let imageUrl: string | undefined;
+    let imageUrl: string | null | undefined;
     if (member?.name) {
         if (member.getMxcAvatarUrl()) {
             imageUrl = mediaFromMxc(member.getMxcAvatarUrl() ?? "").getThumbnailOfSourceHttp(
@@ -109,7 +108,7 @@ export default function MemberAvatar({
 }
 
 export class LegacyMemberAvatar extends React.Component<IProps> {
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         return <MemberAvatar {...this.props}>{this.props.children}</MemberAvatar>;
     }
 }

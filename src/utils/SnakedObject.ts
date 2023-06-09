@@ -25,11 +25,11 @@ export class SnakedObject<T = Record<string, any>> {
         const val = this.obj[key];
         if (val !== undefined) return val;
 
-        return this.obj[altCaseName ?? snakeToCamel(key)];
+        return this.obj[<K>(altCaseName ?? snakeToCamel(key))];
     }
 
     // Make JSON.stringify() pretend that everything is fine
-    public toJSON() {
+    public toJSON(): T {
         return this.obj;
     }
 }

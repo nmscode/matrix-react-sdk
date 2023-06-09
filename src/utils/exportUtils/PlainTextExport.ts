@@ -29,7 +29,7 @@ export default class PlainTextExporter extends Exporter {
     protected totalSize: number;
     protected mediaOmitText: string;
 
-    constructor(
+    public constructor(
         room: Room,
         exportType: ExportType,
         exportOptions: IExportOptions,
@@ -46,7 +46,7 @@ export default class PlainTextExporter extends Exporter {
         return this.makeFileNameNoExtension() + ".txt";
     }
 
-    public textForReplyEvent = (content: IContent) => {
+    public textForReplyEvent = (content: IContent): string => {
         const REPLY_REGEX = /> <(.*?)>(.*?)\n\n(.*)/s;
         const REPLY_SOURCE_MAX_LENGTH = 32;
 
@@ -79,7 +79,7 @@ export default class PlainTextExporter extends Exporter {
         return `<${rplName}${rplSource}> ${rplText}`;
     };
 
-    protected plainTextForEvent = async (mxEv: MatrixEvent) => {
+    protected plainTextForEvent = async (mxEv: MatrixEvent): Promise<string> => {
         const senderDisplayName = mxEv.sender && mxEv.sender.name ? mxEv.sender.name : mxEv.getSender();
         let mediaText = "";
         if (this.isAttachment(mxEv)) {
@@ -107,7 +107,7 @@ export default class PlainTextExporter extends Exporter {
         else return textForEvent(mxEv) + mediaText;
     };
 
-    protected async createOutput(events: MatrixEvent[]) {
+    protected async createOutput(events: MatrixEvent[]): Promise<string> {
         let content = "";
         for (let i = 0; i < events.length; i++) {
             const event = events[i];
@@ -127,9 +127,9 @@ export default class PlainTextExporter extends Exporter {
         return content;
     }
 
-    public async export() {
-        this.updateProgress(_t("Starting export process..."));
-        this.updateProgress(_t("Fetching events..."));
+    public async export(): Promise<void> {
+        this.updateProgress(_t("Starting export process…"));
+        this.updateProgress(_t("Fetching events…"));
 
         const fetchStart = performance.now();
         const res = await this.getRequiredEvents();
@@ -137,7 +137,7 @@ export default class PlainTextExporter extends Exporter {
 
         logger.log(`Fetched ${res.length} events in ${(fetchEnd - fetchStart) / 1000}s`);
 
-        this.updateProgress(_t("Creating output..."));
+        this.updateProgress(_t("Creating output…"));
         const text = await this.createOutput(res);
 
         if (this.files.length) {

@@ -28,9 +28,8 @@ import {
 } from "matrix-js-sdk/src/@types/partials";
 import { logger } from "matrix-js-sdk/src/logger";
 
-import { MatrixClientPeg } from "./MatrixClientPeg";
-import Modal from "./Modal";
-import { _t } from "./languageHandler";
+import Modal, { IHandle } from "./Modal";
+import { _t, UserFriendlyError } from "./languageHandler";
 import dis from "./dispatcher/dispatcher";
 import * as Rooms from "./Rooms";
 import { getAddressType } from "./UserAddress";
@@ -82,6 +81,7 @@ const DEFAULT_EVENT_POWER_LEVELS = {
 /**
  * Create a new room, and switch to it.
  *
+ * @param client The Matrix Client instance to create the room with
  * @param {object=} opts parameters for creating the room
  * @param {string=} opts.dmUserId If specified, make this a DM room for this user and invite them
  * @param {object=} opts.createOpts set of options to pass to createRoom call.
@@ -98,13 +98,12 @@ const DEFAULT_EVENT_POWER_LEVELS = {
  * @returns {Promise} which resolves to the room id, or null if the
  * action was aborted or failed.
  */
-export default async function createRoom(opts: IOpts): Promise<string | null> {
+export default async function createRoom(client: MatrixClient, opts: IOpts): Promise<string | null> {
     opts = opts || {};
     if (opts.spinner === undefined) opts.spinner = true;
     if (opts.guestAccess === undefined) opts.guestAccess = true;
     if (opts.encryption === undefined) opts.encryption = false;
 
-    const client = MatrixClientPeg.get();
     if (client.isGuest()) {
         dis.dispatch({ action: "require_registration" });
         return null;
@@ -121,14 +120,23 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
             case "mx-user-id":
                 createOpts.invite = [opts.dmUserId];
                 break;
-            case "email":
+            case "email": {
+                const isUrl = client.getIdentityServerUrl(true);
+                if (!isUrl) {
+                    throw new UserFriendlyError(
+                        "Cannot invite user by email without an identity server. " +
+                            'You can connect to one under "Settings".',
+                    );
+                }
                 createOpts.invite_3pid = [
                     {
-                        id_server: MatrixClientPeg.get().getIdentityServerUrl(true),
+                        id_server: isUrl,
                         medium: "email",
                         address: opts.dmUserId,
                     },
                 ];
+                break;
+            }
         }
     }
     if (opts.dmUserId && createOpts.is_direct === undefined) {
@@ -153,7 +161,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
                 },
                 users: {
                     // Temporarily give ourselves the power to set up a widget
-                    [client.getUserId()!]: 200,
+                    [client.getSafeUserId()]: 200,
                 },
             };
         } else if (opts.roomType === RoomType.UnstableCall) {
@@ -167,7 +175,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
                 },
                 users: {
                     // Temporarily give ourselves the power to set up a call
-                    [client.getUserId()!]: 200,
+                    [client.getSafeUserId()]: 200,
                 },
             };
         }
@@ -267,8 +275,8 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
         });
     }
 
-    let modal;
-    if (opts.spinner) modal = Modal.createDialog(Spinner, null, "mx_Dialog_spinner");
+    let modal: IHandle<any> | undefined;
+    if (opts.spinner) modal = Modal.createDialog(Spinner, undefined, "mx_Dialog_spinner");
 
     let roomId: string;
     let room: Promise<Room>;
@@ -294,7 +302,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
         .finally(function () {
             if (modal) modal.close();
         })
-        .then(async (res) => {
+        .then(async (res): Promise<void> => {
             roomId = res.room_id;
 
             room = new Promise((resolve) => {
@@ -303,7 +311,7 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
                     resolve(storedRoom);
                 } else {
                     // The room hasn't arrived down sync yet
-                    const onRoom = (emittedRoom: Room) => {
+                    const onRoom = (emittedRoom: Room): void => {
                         if (emittedRoom.roomId === roomId) {
                             resolve(emittedRoom);
                             client.off(ClientEvent.Room, onRoom);
@@ -313,19 +321,19 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
                 }
             });
 
-            if (opts.dmUserId) await Rooms.setDMRoom(roomId, opts.dmUserId);
+            if (opts.dmUserId) await Rooms.setDMRoom(client, roomId, opts.dmUserId);
         })
         .then(() => {
             if (opts.parentSpace) {
                 return SpaceStore.instance.addRoomToSpace(
                     opts.parentSpace,
                     roomId,
-                    [client.getDomain()],
+                    [client.getDomain()!],
                     opts.suggested,
                 );
             }
         })
-        .then(async () => {
+        .then(async (): Promise<void> => {
             if (opts.roomType === RoomType.ElementVideo) {
                 // Set up this video room with a Jitsi call
                 await JitsiCall.create(await room);
@@ -395,19 +403,25 @@ export default async function createRoom(opts: IOpts): Promise<string | null> {
  * Ensure that for every user in a room, there is at least one device that we
  * can encrypt to.
  */
-export async function canEncryptToAllUsers(client: MatrixClient, userIds: string[]) {
+export async function canEncryptToAllUsers(client: MatrixClient, userIds: string[]): Promise<boolean> {
     try {
-        const usersDeviceMap = await client.downloadKeys(userIds);
-        // { "@user:host": { "DEVICE": {...}, ... }, ... }
-        return Object.values(usersDeviceMap).every(
-            (userDevices) =>
-                // { "DEVICE": {...}, ... }
-                Object.keys(userDevices).length > 0,
-        );
+        const usersDeviceMap = await client.getCrypto()?.getUserDeviceInfo(userIds, true);
+        if (!usersDeviceMap) {
+            return false;
+        }
+
+        for (const devices of usersDeviceMap.values()) {
+            if (devices.size === 0) {
+                // This user does not have any encryption-capable devices.
+                return false;
+            }
+        }
     } catch (e) {
         logger.error("Error determining if it's possible to encrypt to all users: ", e);
         return false; // assume not
     }
+
+    return true;
 }
 
 // Similar to ensureDMExists but also adds creation content
@@ -417,13 +431,13 @@ export async function ensureVirtualRoomExists(
     client: MatrixClient,
     userId: string,
     nativeRoomId: string,
-): Promise<string> {
+): Promise<string | null> {
     const existingDMRoom = findDMForUser(client, userId);
-    let roomId;
+    let roomId: string | null;
     if (existingDMRoom) {
         roomId = existingDMRoom.roomId;
     } else {
-        roomId = await createRoom({
+        roomId = await createRoom(client, {
             dmUserId: userId,
             spinner: false,
             andView: false,
@@ -440,18 +454,19 @@ export async function ensureVirtualRoomExists(
     return roomId;
 }
 
-export async function ensureDMExists(client: MatrixClient, userId: string): Promise<string> {
+export async function ensureDMExists(client: MatrixClient, userId: string): Promise<string | null> {
     const existingDMRoom = findDMForUser(client, userId);
-    let roomId;
+    let roomId: string | null;
     if (existingDMRoom) {
         roomId = existingDMRoom.roomId;
     } else {
-        let encryption: boolean = undefined;
-        if (privateShouldBeEncrypted()) {
+        let encryption: boolean | undefined;
+        if (privateShouldBeEncrypted(client)) {
             encryption = await canEncryptToAllUsers(client, [userId]);
         }
 
-        roomId = await createRoom({ encryption, dmUserId: userId, spinner: false, andView: false });
+        roomId = await createRoom(client, { encryption, dmUserId: userId, spinner: false, andView: false });
+        if (!roomId) return null;
         await waitForMember(client, roomId, userId);
     }
     return roomId;

@@ -47,7 +47,7 @@ limitations under the License.
     }
 
     .mx_UserMenu_name {
-        font-weight: $font-semi-bold;
+        font-weight: var(--font-semi-bold);
         font-size: $font-15px;
         line-height: $font-24px;
         margin-left: 10px;
@@ -142,16 +142,12 @@ limitations under the License.
             justify-content: center;
         }
 
-        &.mx_UserMenu_contextMenu_guestPrompts,
-        &.mx_UserMenu_contextMenu_hostingLink {
-            padding-top: 0;
-        }
-
         &.mx_UserMenu_contextMenu_guestPrompts {
+            padding-top: 0;
             display: inline-block;
 
             > span {
-                font-weight: 600;
+                font-weight: var(--font-semi-bold);
                 display: block;
 
                 & + span {
@@ -188,10 +184,6 @@ limitations under the License.
 
     .mx_UserMenu_iconDndOff::before {
         mask-image: url("$(res)/img/element-icons/roomlist/dnd-cross.svg");
-    }
-
-    .mx_UserMenu_iconHosting::before {
-        mask-image: url("$(res)/img/element-icons/brands/element.svg");
     }
 
     .mx_UserMenu_iconBell::before {

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { ErrorInfo } from "react";
+import React, { ErrorInfo, ReactNode } from "react";
 import { logger } from "matrix-js-sdk/src/logger";
 
 import { _t } from "../../../languageHandler";
@@ -25,30 +25,32 @@ import SdkConfig from "../../../SdkConfig";
 import BugReportDialog from "../dialogs/BugReportDialog";
 import AccessibleButton from "./AccessibleButton";
 
+interface Props {
+    children: ReactNode;
+}
+
 interface IState {
-    error: Error;
+    error?: Error;
 }
 
 /**
  * This error boundary component can be used to wrap large content areas and
  * catch exceptions during rendering in the component tree below them.
  */
-export default class ErrorBoundary extends React.PureComponent<{}, IState> {
-    constructor(props) {
+export default class ErrorBoundary extends React.PureComponent<Props, IState> {
+    public constructor(props: Props) {
         super(props);
 
-        this.state = {
-            error: null,
-        };
+        this.state = {};
     }
 
-    static getDerivedStateFromError(error: Error): Partial<IState> {
+    public static getDerivedStateFromError(error: Error): Partial<IState> {
         // Side effects are not permitted here, so we only update the state so
         // that the next render shows an error message.
         return { error };
     }
 
-    componentDidCatch(error: Error, { componentStack }: ErrorInfo): void {
+    public componentDidCatch(error: Error, { componentStack }: ErrorInfo): void {
         // Browser consoles are better at formatting output when native errors are passed
         // in their own `console.error` invocation.
         logger.error(error);
@@ -62,7 +64,7 @@ export default class ErrorBoundary extends React.PureComponent<{}, IState> {
         MatrixClientPeg.get()
             .store.deleteAllData()
             .then(() => {
-                PlatformPeg.get().reload();
+                PlatformPeg.get()?.reload();
             });
     };
 
@@ -73,7 +75,7 @@ export default class ErrorBoundary extends React.PureComponent<{}, IState> {
         });
     };
 
-    render() {
+    public render(): ReactNode {
         if (this.state.error) {
             const newIssueUrl = "https://github.com/vector-im/element-web/issues/new/choose";
 
@@ -117,7 +119,7 @@ export default class ErrorBoundary extends React.PureComponent<{}, IState> {
                 );
             }
 
-            let clearCacheButton: JSX.Element;
+            let clearCacheButton: JSX.Element | undefined;
             // we only show this button if there is an initialised MatrixClient otherwise we can't clear the cache
             if (MatrixClientPeg.get()) {
                 clearCacheButton = (

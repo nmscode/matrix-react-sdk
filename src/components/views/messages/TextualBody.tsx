@@ -14,11 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { createRef, SyntheticEvent, MouseEvent, ReactNode } from "react";
+import React, { createRef, SyntheticEvent, MouseEvent } from "react";
 import ReactDOM from "react-dom";
 import highlight from "highlight.js";
 import { MsgType } from "matrix-js-sdk/src/@types/event";
-import { isEventLike, LegacyMsgType, M_MESSAGE, MessageEvent } from "matrix-events-sdk";
 
 import * as HtmlUtils from "../../../HtmlUtils";
 import { formatDate } from "../../../DateUtils";
@@ -35,7 +34,6 @@ import { isPermalinkHost, tryTransformPermalinkToLocalHref } from "../../../util
 import { copyPlaintext } from "../../../utils/strings";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
 import UIStore from "../../../stores/UIStore";
-import { ComposerInsertPayload } from "../../../dispatcher/payloads/ComposerInsertPayload";
 import { Action } from "../../../dispatcher/actions";
 import GenericTextContextMenu from "../context_menus/GenericTextContextMenu";
 import Spoiler from "../elements/Spoiler";
@@ -47,12 +45,12 @@ import { IBodyProps } from "./IBodyProps";
 import RoomContext from "../../../contexts/RoomContext";
 import AccessibleButton from "../elements/AccessibleButton";
 import { options as linkifyOpts } from "../../../linkify-matrix";
-import { getParentEventId } from '../../../utils/Reply';
-import { MatrixClientPeg } from "../../../MatrixClientPeg";
 import { decryptFile } from '../../../utils/DecryptFile';
 import { mediaFromMxc } from '../../../customisations/Media';
-import { EditWysiwygComposer } from '../rooms/wysiwyg_composer';
-
+import { getParentEventId } from "../../../utils/Reply";
+import { EditWysiwygComposer } from "../rooms/wysiwyg_composer";
+import { IEventTileOps } from "../rooms/EventTile";
+import { MatrixClientPeg } from "../../../MatrixClientPeg";
 
 const MAX_HIGHLIGHT_LENGTH = 4096;
 
@@ -72,10 +70,10 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
     private pills: Element[] = [];
     private tooltips: Element[] = [];
 
-    static contextType = RoomContext;
+    public static contextType = RoomContext;
     public context!: React.ContextType<typeof RoomContext>;
 
-    constructor(props) {
+    public constructor(props: IBodyProps) {
         super(props);
 
         this.state = {
@@ -85,7 +83,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         };
     }
 
-    componentDidMount() {
+    public componentDidMount(): void {
         if (!this.props.editState) {
             this.applyFormatting();
         }
@@ -94,20 +92,17 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
     private applyFormatting(): void {
         this.decryptEmotes();
         const showLineNumbers = SettingsStore.getValue("showCodeLineNumbers");
-        this.activateSpoilers([this.contentRef.current]);
+        this.activateSpoilers([content]);
 
-        // pillifyLinks BEFORE linkifyElement because plain room/user URLs in the composer
-        // are still sent as plaintext URLs. If these are ever pillified in the composer,
-        // we should be pillify them here by doing the linkifying BEFORE the pillifying.
-        pillifyLinks([this.contentRef.current], this.props.mxEvent, this.pills);
-        HtmlUtils.linkifyElement(this.contentRef.current);
+        HtmlUtils.linkifyElement(content);
+        pillifyLinks(MatrixClientPeg.get(), [content], this.props.mxEvent, this.pills);
 
         this.calculateUrlPreview();
 
         // tooltipifyLinks AFTER calculateUrlPreview because the DOM inside the tooltip
         // container is empty before the internal component has mounted so calculateUrlPreview
         // won't find any anchors
-        tooltipifyLinks([this.contentRef.current], this.pills, this.tooltips);
+        tooltipifyLinks([content], this.pills, this.tooltips);
 
         if (this.props.mxEvent.getContent().format === "org.matrix.custom.html") {
             // Handle expansion and add buttons
@@ -116,7 +111,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                 for (let i = 0; i < pres.length; i++) {
                     // If there already is a div wrapping the codeblock we want to skip this.
                     // This happens after the codeblock was edited.
-                    if (pres[i].parentElement.className == "mx_EventTile_pre_container") continue;
+                    if (pres[i].parentElement?.className == "mx_EventTile_pre_container") continue;
                     // Add code element if it's missing since we depend on it
                     if (pres[i].getElementsByTagName("code").length == 0) {
                         this.addCodeElement(pres[i]);
@@ -169,7 +164,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             button.className += "mx_EventTile_collapseButton";
         }
 
-        button.onclick = async () => {
+        button.onclick = async (): Promise<void> => {
             button.className = "mx_EventTile_button ";
             if (pre.className == "mx_EventTile_collapsedCodeBlock") {
                 pre.className = "";
@@ -181,7 +176,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
 
             // By expanding/collapsing we changed
             // the height, therefore we call this
-            this.props.onHeightChanged();
+            this.props.onHeightChanged?.();
         };
 
         div.appendChild(button);
@@ -195,9 +190,9 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         const expansionButtonExists = div.getElementsByClassName("mx_EventTile_button");
         if (expansionButtonExists.length > 0) button.className += "mx_EventTile_buttonBottom";
 
-        button.onclick = async () => {
-            const copyCode = button.parentElement.getElementsByTagName("code")[0];
-            const successful = await copyPlaintext(copyCode.textContent);
+        button.onclick = async (): Promise<void> => {
+            const copyCode = button.parentElement?.getElementsByTagName("code")[0];
+            const successful = copyCode?.textContent ? await copyPlaintext(copyCode.textContent) : false;
 
             const buttonRect = button.getBoundingClientRect();
             const { close } = ContextMenu.createMenu(GenericTextContextMenu, {
@@ -216,7 +211,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         div.className = "mx_EventTile_pre_container";
 
         // Insert containing div in place of <pre> block
-        pre.parentNode.replaceChild(div, pre);
+        pre.parentNode?.replaceChild(div, pre);
         // Append <pre> block and copy button to container
         div.appendChild(pre);
 
@@ -245,7 +240,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
     }
 
     private highlightCode(code: HTMLElement): void {
-        if (code.textContent.length > MAX_HIGHLIGHT_LENGTH) {
+        if (code.textContent && code.textContent.length > MAX_HIGHLIGHT_LENGTH) {
             console.log(
                 "Code block is bigger than highlight limit (" +
                     code.textContent.length +
@@ -272,7 +267,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             // We don't use highlightElement here because we can't force language detection
             // off. It should use the one we've found in the CSS class but we'd rather pass
             // it in explicitly to make sure.
-            code.innerHTML = highlight.highlight(advertisedLang, code.textContent).value;
+            code.innerHTML = highlight.highlight(code.textContent ?? "", { language: advertisedLang }).value;
         } else if (
             SettingsStore.getValue("enableSyntaxHighlightLanguageDetection") &&
             code.parentElement instanceof HTMLPreElement
@@ -284,11 +279,11 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             // work on the DOM with highlightElement because that also adds CSS
             // classes to the pre/code element that we don't want (the CSS
             // conflicts with our own).
-            code.innerHTML = highlight.highlightAuto(code.textContent).value;
+            code.innerHTML = highlight.highlightAuto(code.textContent ?? "").value;
         }
     }
 
-    componentDidUpdate(prevProps) {
+    public componentDidUpdate(prevProps: Readonly<IBodyProps>): void {
         if (!this.props.editState) {
             const stoppedEditing = prevProps.editState && !this.props.editState;
             const messageWasEdited = prevProps.replacingEventId !== this.props.replacingEventId;
@@ -298,13 +293,16 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         }
     }
 
-    componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.unmounted = true;
         unmountPills(this.pills);
         unmountTooltips(this.tooltips);
+
+        this.pills = [];
+        this.tooltips = [];
     }
 
-    shouldComponentUpdate(nextProps, nextState) {
+    public shouldComponentUpdate(nextProps: Readonly<IBodyProps>, nextState: Readonly<IState>): boolean {
         //console.info("shouldComponentUpdate: ShowUrlPreview for %s is %s", this.props.mxEvent.getId(), this.props.showUrlPreview);
 
         // exploit that events are immutable :)
@@ -324,7 +322,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
     private calculateUrlPreview(): void {
         //console.info("calculateUrlPreview: ShowUrlPreview for %s is %s", this.props.mxEvent.getId(), this.props.showUrlPreview);
 
-        if (this.props.showUrlPreview) {
+        if (this.props.showUrlPreview && this.contentRef.current) {
             // pass only the first child which is the event tile otherwise this recurses on edited events
             let links = this.findLinks([this.contentRef.current]);
             if (links.length) {
@@ -349,12 +347,12 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             if (node.tagName === "SPAN" && typeof node.getAttribute("data-mx-spoiler") === "string") {
                 const spoilerContainer = document.createElement("span");
 
-                const reason = node.getAttribute("data-mx-spoiler");
+                const reason = node.getAttribute("data-mx-spoiler") ?? undefined;
                 node.removeAttribute("data-mx-spoiler"); // we don't want to recurse
                 const spoiler = <Spoiler reason={reason} contentHtml={node.outerHTML} />;
 
                 ReactDOM.render(spoiler, spoilerContainer);
-                node.parentNode.replaceChild(spoilerContainer, node);
+                node.parentNode?.replaceChild(spoilerContainer, node);
 
                 node = spoilerContainer;
             }
@@ -374,7 +372,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
             const node = nodes[i];
             if (node.tagName === "A" && node.getAttribute("href")) {
                 if (this.isLinkPreviewable(node)) {
-                    links.push(node.getAttribute("href"));
+                    links.push(node.getAttribute("href")!);
                 }
             } else if (node.tagName === "PRE" || node.tagName === "CODE" || node.tagName === "BLOCKQUOTE") {
                 continue;
@@ -387,7 +385,8 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
 
     private isLinkPreviewable(node: Element): boolean {
         // don't try to preview relative links
-        if (!node.getAttribute("href").startsWith("http://") && !node.getAttribute("href").startsWith("https://")) {
+        const href = node.getAttribute("href") ?? "";
+        if (!href.startsWith("http://") && !href.startsWith("https://")) {
             return false;
         }
 
@@ -396,24 +395,24 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         // or from a full foo.bar/baz style schemeless URL) - or be a markdown-style
         // link, in which case we check the target text differs from the link value.
         // TODO: make this configurable?
-        if (node.textContent.indexOf("/") > -1) {
+        if (node.textContent?.includes("/")) {
             return true;
+        }
+
+        const url = node.getAttribute("href");
+        const host = url?.match(/^https?:\/\/(.*?)(\/|$)/)?.[1];
+
+        // never preview permalinks (if anything we should give a smart
+        // preview of the room/user they point to: nobody needs to be reminded
+        // what the matrix.to site looks like).
+        if (!host || isPermalinkHost(host)) return false;
+
+        if (node.textContent?.toLowerCase().trim().startsWith(host.toLowerCase())) {
+            // it's a "foo.pl" style link
+            return false;
         } else {
-            const url = node.getAttribute("href");
-            const host = url.match(/^https?:\/\/(.*?)(\/|$)/)[1];
-
-            // never preview permalinks (if anything we should give a smart
-            // preview of the room/user they point to: nobody needs to be reminded
-            // what the matrix.to site looks like).
-            if (isPermalinkHost(host)) return false;
-
-            if (node.textContent.toLowerCase().trim().startsWith(host.toLowerCase())) {
-                // it's a "foo.pl" style link
-                return false;
-            } else {
-                // it's a [foo bar](http://foo.com) style link
-                return true;
-            }
+            // it's a [foo bar](http://foo.com) style link
+            return true;
         }
     }
 
@@ -428,7 +427,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
 
     private onEmoteSenderClick = (): void => {
         const mxEvent = this.props.mxEvent;
-        dis.dispatch<ComposerInsertPayload>({
+        dis.dispatch({
             action: Action.ComposerInsert,
             userId: mxEvent.getSender(),
             timelineRenderingType: this.context.timelineRenderingType,
@@ -441,9 +440,9 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
      * to start with (e.g. pills, links in the content).
      */
     private onBodyLinkClick = (e: MouseEvent): void => {
-        let target = e.target as HTMLLinkElement;
+        let target: HTMLLinkElement | null = e.target as HTMLLinkElement;
         // links processed by linkifyjs have their own handler so don't handle those here
-        if (target.classList.contains(linkifyOpts.className)) return;
+        if (target.classList.contains(linkifyOpts.className as string)) return;
         if (target.nodeName !== "A") {
             // Jump to parent as the `<a>` may contain children, e.g. an anchor wrapping an inline code section
             target = target.closest<HTMLLinkElement>("a");
@@ -458,7 +457,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         }
     };
 
-    public getEventTileOps = () => ({
+    public getEventTileOps = (): IEventTileOps => ({
         isWidgetHidden: () => {
             return this.state.widgetHidden;
         },
@@ -488,10 +487,10 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
 
         // Go fetch a scalar token
         const integrationManager = managers.getPrimaryManager();
-        const scalarClient = integrationManager.getScalarClient();
-        scalarClient.connect().then(() => {
+        const scalarClient = integrationManager?.getScalarClient();
+        scalarClient?.connect().then(() => {
             const completeUrl = scalarClient.getStarterLink(starterLink);
-            const integrationsUrl = integrationManager.uiUrl;
+            const integrationsUrl = integrationManager!.uiUrl;
             Modal.createDialog(QuestionDialog, {
                 title: _t("Add an Integration"),
                 description: (
@@ -514,7 +513,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
                     const left = (window.screen.width - width) / 2;
                     const top = (window.screen.height - height) / 2;
                     const features = `height=${height}, width=${width}, top=${top}, left=${left},`;
-                    const wnd = window.open(completeUrl, "_blank", features);
+                    const wnd = window.open(completeUrl, "_blank", features)!;
                     wnd.opener = null;
                 },
             });
@@ -525,7 +524,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
         Modal.createDialog(MessageEditHistoryDialog, { mxEvent: this.props.mxEvent });
     };
 
-    private renderEditedMarker() {
+    private renderEditedMarker(): JSX.Element {
         const date = this.props.mxEvent.replacingEventDate();
         const dateString = date && formatDate(date);
 
@@ -552,7 +551,7 @@ export default class TextualBody extends React.Component<IBodyProps, IState> {
      * Render a marker informing the user that, while they can see the message,
      * it is hidden for other users.
      */
-    private renderPendingModerationMarker() {
+    private renderPendingModerationMarker(): JSX.Element {
         let text;
         const visibility = this.props.mxEvent.messageVisibility();
         switch (visibility.visible) {

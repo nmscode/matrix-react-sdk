@@ -21,7 +21,6 @@ import { MatrixClient } from "matrix-js-sdk/src/client";
 import { EventType } from "matrix-js-sdk/src/@types/event";
 import { HistoryVisibility } from "matrix-js-sdk/src/@types/partials";
 
-import { MatrixClientPeg } from "../MatrixClientPeg";
 import { AddressType, getAddressType } from "../UserAddress";
 import { _t } from "../languageHandler";
 import Modal from "../Modal";
@@ -38,7 +37,12 @@ interface IError {
     errcode: string;
 }
 
-const UNKNOWN_PROFILE_ERRORS = ["M_NOT_FOUND", "M_USER_NOT_FOUND", "M_PROFILE_UNDISCLOSED", "M_PROFILE_NOT_FOUND"];
+export const UNKNOWN_PROFILE_ERRORS = [
+    "M_NOT_FOUND",
+    "M_USER_NOT_FOUND",
+    "M_PROFILE_UNDISCLOSED",
+    "M_PROFILE_NOT_FOUND",
+];
 
 export type CompletionStates = Record<string, InviteState>;
 
@@ -49,26 +53,27 @@ const USER_ALREADY_INVITED = "IO.ELEMENT.ALREADY_INVITED";
  * Invites multiple addresses to a room, handling rate limiting from the server
  */
 export default class MultiInviter {
-    private readonly matrixClient: MatrixClient;
-
     private canceled = false;
     private addresses: string[] = [];
     private busy = false;
     private _fatal = false;
     private completionStates: CompletionStates = {}; // State of each address (invited or error)
     private errors: Record<string, IError> = {}; // { address: {errorText, errcode} }
-    private deferred: IDeferred<CompletionStates> = null;
-    private reason: string = null;
+    private deferred: IDeferred<CompletionStates> | null = null;
+    private reason: string | undefined;
 
     /**
+     * @param matrixClient the client of the logged in user
      * @param {string} roomId The ID of the room to invite to
      * @param {function} progressCallback optional callback, fired after each invite.
      */
-    constructor(private roomId: string, private readonly progressCallback?: () => void) {
-        this.matrixClient = MatrixClientPeg.get();
-    }
+    public constructor(
+        private readonly matrixClient: MatrixClient,
+        private roomId: string,
+        private readonly progressCallback?: () => void,
+    ) {}
 
-    public get fatal() {
+    public get fatal(): boolean {
         return this._fatal;
     }
 
@@ -81,7 +86,7 @@ export default class MultiInviter {
      * @param {boolean} sendSharedHistoryKeys whether to share e2ee keys with the invitees if applicable.
      * @returns {Promise} Resolved when all invitations in the queue are complete
      */
-    public invite(addresses, reason?: string, sendSharedHistoryKeys = false): Promise<CompletionStates> {
+    public invite(addresses: string[], reason?: string, sendSharedHistoryKeys = false): Promise<CompletionStates> {
         if (this.addresses.length > 0) {
             throw new Error("Already inviting/invited");
         }
@@ -112,8 +117,8 @@ export default class MultiInviter {
             return this.deferred.promise;
         }
 
-        return this.deferred.promise.then(async (states) => {
-            const invitedUsers = [];
+        return this.deferred.promise.then(async (states): Promise<CompletionStates> => {
+            const invitedUsers: string[] = [];
             for (const [addr, state] of Object.entries(states)) {
                 if (state === InviteState.Invited && getAddressType(addr) === AddressType.MatrixUserId) {
                     invitedUsers.push(addr);
@@ -134,15 +139,15 @@ export default class MultiInviter {
         if (!this.busy) return;
 
         this.canceled = true;
-        this.deferred.reject(new Error("canceled"));
+        this.deferred?.reject(new Error("canceled"));
     }
 
     public getCompletionState(addr: string): InviteState {
         return this.completionStates[addr];
     }
 
-    public getErrorText(addr: string): string {
-        return this.errors[addr] ? this.errors[addr].errorText : null;
+    public getErrorText(addr: string): string | null {
+        return this.errors[addr]?.errorText ?? null;
     }
 
     private async inviteToRoom(roomId: string, addr: string, ignoreProfile = false): Promise<{}> {
@@ -216,7 +221,7 @@ export default class MultiInviter {
 
                     const isSpace = this.roomId && this.matrixClient.getRoom(this.roomId)?.isSpaceRoom();
 
-                    let errorText: string;
+                    let errorText: string | undefined;
                     let fatal = false;
                     switch (err.errcode) {
                         case "M_FORBIDDEN":
@@ -272,6 +277,13 @@ export default class MultiInviter {
                                 errorText = _t("The user's homeserver does not support the version of the room.");
                             }
                             break;
+                        case "ORG.MATRIX.JSSDK_MISSING_PARAM":
+                            if (getAddressType(address) === AddressType.Email) {
+                                errorText = _t(
+                                    "Cannot invite user by email without an identity server. " +
+                                        'You can connect to one under "Settings".',
+                                );
+                            }
                     }
 
                     if (!errorText) {
@@ -308,9 +320,9 @@ export default class MultiInviter {
                 );
 
                 if (unknownProfileUsers.length > 0) {
-                    const inviteUnknowns = () => {
+                    const inviteUnknowns = (): void => {
                         const promises = unknownProfileUsers.map((u) => this.doInvite(u, true));
-                        Promise.all(promises).then(() => this.deferred.resolve(this.completionStates));
+                        Promise.all(promises).then(() => this.deferred?.resolve(this.completionStates));
                     };
 
                     if (!SettingsStore.getValue("promptBeforeInviteUnknownUsers", this.roomId)) {
@@ -330,13 +342,13 @@ export default class MultiInviter {
                             for (const addr of unknownProfileUsers) {
                                 this.completionStates[addr] = InviteState.Invited;
                             }
-                            this.deferred.resolve(this.completionStates);
+                            this.deferred?.resolve(this.completionStates);
                         },
                     });
                     return;
                 }
             }
-            this.deferred.resolve(this.completionStates);
+            this.deferred?.resolve(this.completionStates);
             return;
         }
 
@@ -361,6 +373,6 @@ export default class MultiInviter {
             .then(() => {
                 this.inviteMore(nextIndex + 1, ignoreProfile);
             })
-            .catch(() => this.deferred.resolve(this.completionStates));
+            .catch(() => this.deferred?.resolve(this.completionStates));
     }
 }

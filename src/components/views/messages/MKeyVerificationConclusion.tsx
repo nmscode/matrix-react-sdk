@@ -36,7 +36,7 @@ interface IProps {
 }
 
 export default class MKeyVerificationConclusion extends React.Component<IProps> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
     }
 
@@ -72,7 +72,7 @@ export default class MKeyVerificationConclusion extends React.Component<IProps> 
         this.forceUpdate();
     };
 
-    public static shouldRender(mxEvent: MatrixEvent, request: VerificationRequest): boolean {
+    public static shouldRender(mxEvent: MatrixEvent, request?: VerificationRequest): boolean {
         // normally should not happen
         if (!request) {
             return false;
@@ -99,9 +99,9 @@ export default class MKeyVerificationConclusion extends React.Component<IProps> 
         return true;
     }
 
-    public render(): JSX.Element {
+    public render(): JSX.Element | null {
         const { mxEvent } = this.props;
-        const request = mxEvent.verificationRequest;
+        const request = mxEvent.verificationRequest!;
 
         if (!MKeyVerificationConclusion.shouldRender(mxEvent, request)) {
             return null;
@@ -110,20 +110,22 @@ export default class MKeyVerificationConclusion extends React.Component<IProps> 
         const client = MatrixClientPeg.get();
         const myUserId = client.getUserId();
 
-        let title;
+        let title: string | undefined;
 
         if (request.done) {
             title = _t("You verified %(name)s", {
-                name: getNameForEventRoom(request.otherUserId, mxEvent.getRoomId()),
+                name: getNameForEventRoom(client, request.otherUserId, mxEvent.getRoomId()!),
             });
         } else if (request.cancelled) {
             const userId = request.cancellingUserId;
             if (userId === myUserId) {
                 title = _t("You cancelled verifying %(name)s", {
-                    name: getNameForEventRoom(request.otherUserId, mxEvent.getRoomId()),
+                    name: getNameForEventRoom(client, request.otherUserId, mxEvent.getRoomId()!),
                 });
-            } else {
-                title = _t("%(name)s cancelled verifying", { name: getNameForEventRoom(userId, mxEvent.getRoomId()) });
+            } else if (userId) {
+                title = _t("%(name)s cancelled verifying", {
+                    name: getNameForEventRoom(client, userId, mxEvent.getRoomId()!),
+                });
             }
         }
 
@@ -135,7 +137,7 @@ export default class MKeyVerificationConclusion extends React.Component<IProps> 
                 <EventTileBubble
                     className={classes}
                     title={title}
-                    subtitle={userLabelForEventRoom(request.otherUserId, mxEvent.getRoomId())}
+                    subtitle={userLabelForEventRoom(client, request.otherUserId, mxEvent.getRoomId()!)}
                     timestamp={this.props.timestamp}
                 />
             );

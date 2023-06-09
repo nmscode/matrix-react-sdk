@@ -24,6 +24,7 @@ import { usePlainTextListeners } from "../hooks/usePlainTextListeners";
 import { useSetCursorPosition } from "../hooks/useSetCursorPosition";
 import { ComposerFunctions } from "../types";
 import { Editor } from "./Editor";
+import { WysiwygAutocomplete } from "./WysiwygAutocomplete";
 
 interface PlainTextComposerProps {
     disabled?: boolean;
@@ -33,7 +34,7 @@ interface PlainTextComposerProps {
     initialContent?: string;
     className?: string;
     leftComponent?: ReactNode;
-    rightComponent?: (selectPreviousSelection: () => void) => ReactNode;
+    rightComponent?: ReactNode;
     children?: (ref: MutableRefObject<HTMLDivElement | null>, composerFunctions: ComposerFunctions) => ReactNode;
 }
 
@@ -47,15 +48,24 @@ export function PlainTextComposer({
     initialContent,
     leftComponent,
     rightComponent,
-}: PlainTextComposerProps) {
-    const { ref, onInput, onPaste, onKeyDown, content, setContent } = usePlainTextListeners(
-        initialContent,
-        onChange,
-        onSend,
-    );
-    const composerFunctions = useComposerFunctions(ref, setContent);
-    usePlainTextInitialization(initialContent, ref);
-    useSetCursorPosition(disabled, ref);
+}: PlainTextComposerProps): JSX.Element {
+    const {
+        ref: editorRef,
+        autocompleteRef,
+        onInput,
+        onPaste,
+        onKeyDown,
+        content,
+        setContent,
+        suggestion,
+        onSelect,
+        handleCommand,
+        handleMention,
+    } = usePlainTextListeners(initialContent, onChange, onSend);
+
+    const composerFunctions = useComposerFunctions(editorRef, setContent);
+    usePlainTextInitialization(initialContent, editorRef);
+    useSetCursorPosition(disabled, editorRef);
     const { isFocused, onFocus } = useIsFocused();
     const computedPlaceholder = (!content && placeholder) || undefined;
 
@@ -68,15 +78,22 @@ export function PlainTextComposer({
             onInput={onInput}
             onPaste={onPaste}
             onKeyDown={onKeyDown}
+            onSelect={onSelect}
         >
+            <WysiwygAutocomplete
+                ref={autocompleteRef}
+                suggestion={suggestion}
+                handleMention={handleMention}
+                handleCommand={handleCommand}
+            />
             <Editor
-                ref={ref}
+                ref={editorRef}
                 disabled={disabled}
                 leftComponent={leftComponent}
                 rightComponent={rightComponent}
                 placeholder={computedPlaceholder}
             />
-            {children?.(ref, composerFunctions)}
+            {children?.(editorRef, composerFunctions)}
         </div>
     );
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2021 - 2022 The Matrix.org Foundation C.I.C.
+Copyright 2021 - 2023 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -76,18 +76,22 @@ interface IState {
 }
 
 export default class ThreadView extends React.Component<IProps, IState> {
-    static contextType = RoomContext;
+    public static contextType = RoomContext;
     public context!: React.ContextType<typeof RoomContext>;
 
-    private dispatcherRef: string;
+    private dispatcherRef: string | null = null;
     private readonly layoutWatcherRef: string;
     private timelinePanel = createRef<TimelinePanel>();
     private card = createRef<HTMLDivElement>();
 
-    constructor(props: IProps) {
+    // Set by setEventId in ctor.
+    private eventId!: string;
+
+    public constructor(props: IProps) {
         super(props);
 
-        const thread = this.props.room.getThread(this.props.mxEvent.getId());
+        this.setEventId(this.props.mxEvent);
+        const thread = this.props.room.getThread(this.eventId) ?? undefined;
 
         this.setupThreadListeners(thread);
         this.state = {
@@ -108,22 +112,20 @@ export default class ThreadView extends React.Component<IProps, IState> {
         if (this.state.thread) {
             this.postThreadUpdate(this.state.thread);
         }
+
         this.setupThread(this.props.mxEvent);
         this.dispatcherRef = dis.register(this.onAction);
 
-        const room = MatrixClientPeg.get().getRoom(this.props.mxEvent.getRoomId());
-        room.on(ThreadEvent.New, this.onNewThread);
+        this.props.room.on(ThreadEvent.New, this.onNewThread);
     }
 
     public componentWillUnmount(): void {
         if (this.dispatcherRef) dis.unregister(this.dispatcherRef);
         const roomId = this.props.mxEvent.getRoomId();
-        const room = MatrixClientPeg.get().getRoom(roomId);
-        room.removeListener(ThreadEvent.New, this.onNewThread);
         SettingsStore.unwatchSetting(this.layoutWatcherRef);
 
         const hasRoomChanged = SdkContextClass.instance.roomViewStore.getRoomId() !== roomId;
-        if (this.props.isInitialEventHighlighted && !hasRoomChanged) {
+        if (this.props.initialEvent && !hasRoomChanged) {
             dis.dispatch<ViewRoomPayload>({
                 action: Action.ViewRoom,
                 room_id: this.props.room.roomId,
@@ -135,16 +137,29 @@ export default class ThreadView extends React.Component<IProps, IState> {
             action: Action.ViewThread,
             thread_id: null,
         });
+
+        this.state.thread?.off(ThreadEvent.NewReply, this.updateThreadRelation);
+        this.props.room.off(RoomEvent.LocalEchoUpdated, this.updateThreadRelation);
+        this.props.room.removeListener(ThreadEvent.New, this.onNewThread);
     }
 
-    public componentDidUpdate(prevProps) {
+    public componentDidUpdate(prevProps: IProps): void {
         if (prevProps.mxEvent !== this.props.mxEvent) {
+            this.setEventId(this.props.mxEvent);
             this.setupThread(this.props.mxEvent);
         }
 
         if (prevProps.room !== this.props.room) {
             RightPanelStore.instance.setCard({ phase: RightPanelPhases.RoomSummary });
         }
+    }
+
+    private setEventId(event: MatrixEvent): void {
+        if (!event.getId()) {
+            throw new Error("Got thread event without id");
+        }
+
+        this.eventId = event.getId()!;
     }
 
     private onAction = (payload: ActionPayload): void => {
@@ -171,7 +186,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
                 if (payload.event && !payload.event.getThread()) return;
                 this.setState(
                     {
-                        editState: payload.event ? new EditorStateTransfer(payload.event) : null,
+                        editState: payload.event ? new EditorStateTransfer(payload.event) : undefined,
                     },
                     () => {
                         if (payload.event) {
@@ -192,15 +207,20 @@ export default class ThreadView extends React.Component<IProps, IState> {
         }
     };
 
-    private setupThread = (mxEv: MatrixEvent) => {
-        let thread = this.props.room.getThread(mxEv.getId());
+    private setupThread = (mxEv: MatrixEvent): void => {
+        /** presence of event Id has been ensured by {@link setEventId} */
+        const eventId = mxEv.getId()!;
+
+        let thread = this.props.room.getThread(eventId);
+
         if (!thread) {
-            thread = this.props.room.createThread(mxEv.getId(), mxEv, [mxEv], true);
+            thread = this.props.room.createThread(eventId, mxEv, [mxEv], true);
         }
+
         this.updateThread(thread);
     };
 
-    private onNewThread = (thread: Thread) => {
+    private onNewThread = (thread: Thread): void => {
         if (thread.id === this.props.mxEvent.getId()) {
             this.setupThread(this.props.mxEvent);
         }
@@ -213,12 +233,14 @@ export default class ThreadView extends React.Component<IProps, IState> {
     };
 
     private get threadLastReply(): MatrixEvent | undefined {
-        return this.state.thread?.lastReply((ev: MatrixEvent) => {
-            return ev.isRelation(THREAD_RELATION_TYPE.name) && !ev.status;
-        });
+        return (
+            this.state.thread?.lastReply((ev: MatrixEvent) => {
+                return ev.isRelation(THREAD_RELATION_TYPE.name) && !ev.status;
+            }) ?? undefined
+        );
     }
 
-    private updateThread = (thread?: Thread) => {
+    private updateThread = (thread?: Thread): void => {
         if (this.state.thread === thread) return;
 
         this.setupThreadListeners(thread, this.state.thread);
@@ -245,7 +267,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
 
     private setupThreadListeners(thread?: Thread | undefined, oldThread?: Thread | undefined): void {
         if (oldThread) {
-            this.state.thread.off(ThreadEvent.NewReply, this.updateThreadRelation);
+            this.state.thread?.off(ThreadEvent.NewReply, this.updateThreadRelation);
             this.props.room.off(RoomEvent.LocalEchoUpdated, this.updateThreadRelation);
         }
         if (thread) {
@@ -276,7 +298,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
         this.setState({ narrow });
     };
 
-    private onKeyDown = (ev: KeyboardEvent) => {
+    private onKeyDown = (ev: KeyboardEvent): void => {
         let handled = false;
 
         const action = getKeyBindingsManager().getRoomAction(ev);
@@ -300,7 +322,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
         }
     };
 
-    private onFileDrop = (dataTransfer: DataTransfer) => {
+    private onFileDrop = (dataTransfer: DataTransfer): void => {
         const roomId = this.props.mxEvent.getRoomId();
         if (roomId) {
             ContentMessages.sharedInstance().sendContentListToRoom(
@@ -316,7 +338,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
     };
 
     private get threadRelation(): IEventRelation {
-        const relation = {
+        const relation: IEventRelation = {
             rel_type: THREAD_RELATION_TYPE.name,
             event_id: this.state.thread?.id,
             is_falling_back: true,
@@ -343,8 +365,8 @@ export default class ThreadView extends React.Component<IProps, IState> {
         );
     };
 
-    public render(): JSX.Element {
-        const highlightedEventId = this.props.isInitialEventHighlighted ? this.props.initialEvent?.getId() : null;
+    public render(): React.ReactNode {
+        const highlightedEventId = this.props.isInitialEventHighlighted ? this.props.initialEvent?.getId() : undefined;
 
         const threadRelation = this.threadRelation;
 
@@ -365,7 +387,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
                     <TimelinePanel
                         key={this.state.thread.id}
                         ref={this.timelinePanel}
-                        showReadReceipts={true}
+                        showReadReceipts={this.context.showReadReceipts}
                         manageReadReceipts={true}
                         manageReadMarkers={true}
                         sendReadReceiptOnLoad={true}
@@ -418,7 +440,7 @@ export default class ThreadView extends React.Component<IProps, IState> {
                         PosthogTrackers.trackInteraction("WebThreadViewBackButton", ev);
                     }}
                 >
-                    <Measured sensor={this.card.current} onMeasurement={this.onMeasurement} />
+                    {this.card.current && <Measured sensor={this.card.current} onMeasurement={this.onMeasurement} />}
                     <div className="mx_ThreadView_timelinePanelWrapper">{timeline}</div>
 
                     {ContentMessages.sharedInstance().getCurrentUploads(threadRelation).length > 0 && (

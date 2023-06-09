@@ -26,7 +26,7 @@ interface IState {
 }
 
 export default class Spoiler extends React.Component<IProps, IState> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
         this.state = {
             visible: false,
@@ -42,7 +42,7 @@ export default class Spoiler extends React.Component<IProps, IState> {
         this.setState({ visible: !this.state.visible });
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         const reason = this.props.reason ? (
             <span className="mx_EventTile_spoiler_reason">{"(" + this.props.reason + ")"}</span>
         ) : null;

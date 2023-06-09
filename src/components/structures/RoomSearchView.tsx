@@ -1,5 +1,5 @@
 /*
-Copyright 2015 - 2022 The Matrix.org Foundation C.I.C.
+Copyright 2015 - 2023 The Matrix.org Foundation C.I.C.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import { ISearchResults } from "matrix-js-sdk/src/@types/search";
 import { IThreadBundledRelationship } from "matrix-js-sdk/src/models/event";
 import { THREAD_RELATION_TYPE } from "matrix-js-sdk/src/models/thread";
 import { logger } from "matrix-js-sdk/src/logger";
+import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 
 import ScrollPanel from "./ScrollPanel";
 import { SearchScope } from "../views/rooms/SearchBar";
@@ -33,10 +34,9 @@ import ResizeNotifier from "../../utils/ResizeNotifier";
 import MatrixClientContext from "../../contexts/MatrixClientContext";
 import { RoomPermalinkCreator } from "../../utils/permalinks/Permalinks";
 import RoomContext from "../../contexts/RoomContext";
-import SettingsStore from "../../settings/SettingsStore";
 
 const DEBUG = false;
-let debuglog = function (msg: string) {};
+let debuglog = function (msg: string): void {};
 
 /* istanbul ignore next */
 if (DEBUG) {
@@ -50,7 +50,6 @@ interface Props {
     promise: Promise<ISearchResults>;
     abortController?: AbortController;
     resizeNotifier: ResizeNotifier;
-    permalinkCreator: RoomPermalinkCreator;
     className: string;
     onUpdate(inProgress: boolean, results: ISearchResults | null): void;
 }
@@ -59,7 +58,7 @@ interface Props {
 // XXX: why doesn't searching on name work?
 export const RoomSearchView = forwardRef<ScrollPanel, Props>(
     (
-        { term, scope, promise, abortController, resizeNotifier, permalinkCreator, className, onUpdate }: Props,
+        { term, scope, promise, abortController, resizeNotifier, className, onUpdate }: Props,
         ref: RefObject<ScrollPanel>,
     ) => {
         const client = useContext(MatrixClientContext);
@@ -68,6 +67,15 @@ export const RoomSearchView = forwardRef<ScrollPanel, Props>(
         const [highlights, setHighlights] = useState<string[] | null>(null);
         const [results, setResults] = useState<ISearchResults | null>(null);
         const aborted = useRef(false);
+        // A map from room ID to permalink creator
+        const permalinkCreators = useRef(new Map<string, RoomPermalinkCreator>()).current;
+
+        useEffect(() => {
+            return () => {
+                permalinkCreators.forEach((pc) => pc.stop());
+                permalinkCreators.clear();
+            };
+        }, [permalinkCreators]);
 
         const handleSearchResult = useCallback(
             (searchPromise: Promise<ISearchResults>): Promise<boolean> => {
@@ -75,7 +83,7 @@ export const RoomSearchView = forwardRef<ScrollPanel, Props>(
 
                 return searchPromise
                     .then(
-                        async (results) => {
+                        async (results): Promise<boolean> => {
                             debuglog("search complete");
                             if (aborted.current) {
                                 logger.error("Discarding stale search results");
@@ -99,29 +107,26 @@ export const RoomSearchView = forwardRef<ScrollPanel, Props>(
                                 return b.length - a.length;
                             });
 
-                            if (SettingsStore.getValue("feature_threadstable")) {
-                                // Process all thread roots returned in this batch of search results
-                                // XXX: This won't work for results coming from Seshat which won't include the bundled relationship
-                                for (const result of results.results) {
-                                    for (const event of result.context.getTimeline()) {
-                                        const bundledRelationship =
-                                            event.getServerAggregatedRelation<IThreadBundledRelationship>(
-                                                THREAD_RELATION_TYPE.name,
-                                            );
-                                        if (!bundledRelationship || event.getThread()) continue;
-                                        const room = client.getRoom(event.getRoomId());
-                                        const thread = room.findThreadForEvent(event);
-                                        if (thread) {
-                                            event.setThread(thread);
-                                        } else {
-                                            room.createThread(event.getId(), event, [], true);
-                                        }
+                            for (const result of results.results) {
+                                for (const event of result.context.getTimeline()) {
+                                    const bundledRelationship =
+                                        event.getServerAggregatedRelation<IThreadBundledRelationship>(
+                                            THREAD_RELATION_TYPE.name,
+                                        );
+                                    if (!bundledRelationship || event.getThread()) continue;
+                                    const room = client.getRoom(event.getRoomId());
+                                    const thread = room?.findThreadForEvent(event);
+                                    if (thread) {
+                                        event.setThread(thread);
+                                    } else {
+                                        room?.createThread(event.getId()!, event, [], true);
                                     }
                                 }
                             }
 
                             setHighlights(highlights);
                             setResults({ ...results }); // copy to force a refresh
+                            return false;
                         },
                         (error) => {
                             if (aborted.current) {
@@ -176,7 +181,7 @@ export const RoomSearchView = forwardRef<ScrollPanel, Props>(
             }
 
             debuglog("requesting more search results");
-            const searchPromise = searchPagination(results);
+            const searchPromise = searchPagination(client, results);
             return handleSearchResult(searchPromise);
         };
 
@@ -208,18 +213,20 @@ export const RoomSearchView = forwardRef<ScrollPanel, Props>(
 
         // once dynamic content in the search results load, make the scrollPanel check
         // the scroll offsets.
-        const onHeightChanged = () => {
+        const onHeightChanged = (): void => {
             const scrollPanel = ref.current;
             scrollPanel?.checkScroll();
         };
 
-        let lastRoomId: string;
+        let lastRoomId: string | undefined;
+        let mergedTimeline: MatrixEvent[] = [];
+        let ourEventsIndexes: number[] = [];
 
         for (let i = (results?.results?.length || 0) - 1; i >= 0; i--) {
             const result = results.results[i];
 
             const mxEv = result.context.getEvent();
-            const roomId = mxEv.getRoomId();
+            const roomId = mxEv.getRoomId()!;
             const room = client.getRoom(roomId);
             if (!room) {
                 // if we do not have the room in js-sdk stores then hide it as we cannot easily show it
@@ -251,16 +258,61 @@ export const RoomSearchView = forwardRef<ScrollPanel, Props>(
 
             const resultLink = "#/room/" + roomId + "/" + mxEv.getId();
 
+            // merging two successive search result if the query is present in both of them
+            const currentTimeline = result.context.getTimeline();
+            const nextTimeline = i > 0 ? results.results[i - 1].context.getTimeline() : [];
+
+            if (i > 0 && currentTimeline[currentTimeline.length - 1].getId() == nextTimeline[0].getId()) {
+                // if this is the first searchResult we merge then add all values of the current searchResult
+                if (mergedTimeline.length == 0) {
+                    for (let j = mergedTimeline.length == 0 ? 0 : 1; j < result.context.getTimeline().length; j++) {
+                        mergedTimeline.push(currentTimeline[j]);
+                    }
+                    ourEventsIndexes.push(result.context.getOurEventIndex());
+                }
+
+                // merge the events of the next searchResult
+                for (let j = 1; j < nextTimeline.length; j++) {
+                    mergedTimeline.push(nextTimeline[j]);
+                }
+
+                // add the index of the matching event of the next searchResult
+                ourEventsIndexes.push(
+                    ourEventsIndexes[ourEventsIndexes.length - 1] +
+                        results.results[i - 1].context.getOurEventIndex() +
+                        1,
+                );
+
+                continue;
+            }
+
+            if (mergedTimeline.length == 0) {
+                mergedTimeline = result.context.getTimeline();
+                ourEventsIndexes = [];
+                ourEventsIndexes.push(result.context.getOurEventIndex());
+            }
+
+            let permalinkCreator = permalinkCreators.get(roomId);
+            if (!permalinkCreator) {
+                permalinkCreator = new RoomPermalinkCreator(room);
+                permalinkCreator.start();
+                permalinkCreators.set(roomId, permalinkCreator);
+            }
+
             ret.push(
                 <SearchResultTile
                     key={mxEv.getId()}
-                    searchResult={result}
-                    searchHighlights={highlights}
+                    timeline={mergedTimeline}
+                    ourEventsIndexes={ourEventsIndexes}
+                    searchHighlights={highlights ?? []}
                     resultLink={resultLink}
                     permalinkCreator={permalinkCreator}
                     onHeightChanged={onHeightChanged}
                 />,
             );
+
+            ourEventsIndexes = [];
+            mergedTimeline = [];
         }
 
         return (

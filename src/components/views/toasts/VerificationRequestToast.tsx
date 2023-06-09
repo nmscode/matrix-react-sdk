@@ -47,14 +47,14 @@ interface IState {
 }
 
 export default class VerificationRequestToast extends React.PureComponent<IProps, IState> {
-    private intervalHandle: number;
+    private intervalHandle?: number;
 
-    constructor(props) {
+    public constructor(props: IProps) {
         super(props);
         this.state = { counter: Math.ceil(props.request.timeout / 1000) };
     }
 
-    async componentDidMount() {
+    public async componentDidMount(): Promise<void> {
         const { request } = this.props;
         if (request.timeout && request.timeout > 0) {
             this.intervalHandle = window.setInterval(() => {
@@ -74,29 +74,31 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
 
         if (request.isSelfVerification) {
             const cli = MatrixClientPeg.get();
-            const device = await cli.getDevice(request.channel.deviceId);
-            const ip = device.last_seen_ip;
+            const device = request.channel.deviceId ? await cli.getDevice(request.channel.deviceId) : null;
+            const ip = device?.last_seen_ip;
             this.setState({
-                device: cli.getStoredDevice(cli.getUserId(), request.channel.deviceId),
+                device:
+                    (request.channel.deviceId && cli.getStoredDevice(cli.getSafeUserId(), request.channel.deviceId)) ||
+                    undefined,
                 ip,
             });
         }
     }
 
-    componentWillUnmount() {
+    public componentWillUnmount(): void {
         clearInterval(this.intervalHandle);
         const { request } = this.props;
         request.off(VerificationRequestEvent.Change, this.checkRequestIsPending);
     }
 
-    private checkRequestIsPending = () => {
+    private checkRequestIsPending = (): void => {
         const { request } = this.props;
         if (!request.canAccept) {
             ToastStore.sharedInstance().dismissToast(this.props.toastKey);
         }
     };
 
-    cancel = () => {
+    public cancel = (): void => {
         ToastStore.sharedInstance().dismissToast(this.props.toastKey);
         try {
             this.props.request.cancel();
@@ -105,7 +107,7 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
         }
     };
 
-    accept = async () => {
+    public accept = async (): Promise<void> => {
         ToastStore.sharedInstance().dismissToast(this.props.toastKey);
         const { request } = this.props;
         // no room id for to_device requests
@@ -118,7 +120,7 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
                     should_peek: false,
                     metricsTrigger: "VerificationRequest",
                 });
-                const member = cli.getUser(request.otherUserId);
+                const member = cli.getUser(request.otherUserId) ?? undefined;
                 RightPanelStore.instance.setCards(
                     [
                         { phase: RightPanelPhases.RoomSummary },
@@ -137,7 +139,7 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
                             request.cancel();
                         },
                     },
-                    null,
+                    undefined,
                     /* priority = */ false,
                     /* static = */ true,
                 );
@@ -148,7 +150,7 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
         }
     };
 
-    render() {
+    public render(): React.ReactNode {
         const { request } = this.props;
         let description;
         let detail;
@@ -163,7 +165,7 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
         } else {
             const userId = request.otherUserId;
             const roomId = request.channel.roomId;
-            description = roomId ? userLabelForEventRoom(userId, roomId) : userId;
+            description = roomId ? userLabelForEventRoom(MatrixClientPeg.get(), userId, roomId) : userId;
             // for legacy to_device verification requests
             if (description === userId) {
                 const client = MatrixClientPeg.get();
@@ -174,13 +176,13 @@ export default class VerificationRequestToast extends React.PureComponent<IProps
             }
         }
         const declineLabel =
-            this.state.counter === 0 ? _t("Decline") : _t("Decline (%(counter)s)", { counter: this.state.counter });
+            this.state.counter === 0 ? _t("Ignore") : _t("Ignore (%(counter)s)", { counter: this.state.counter });
 
         return (
             <GenericToast
                 description={description}
                 detail={detail}
-                acceptLabel={_t("Accept")}
+                acceptLabel={_t("Verify Session")}
                 onAccept={this.accept}
                 rejectLabel={declineLabel}
                 onReject={this.cancel}

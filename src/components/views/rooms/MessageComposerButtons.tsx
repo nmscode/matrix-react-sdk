@@ -16,18 +16,17 @@ limitations under the License.
 
 import classNames from "classnames";
 import { IEventRelation } from "matrix-js-sdk/src/models/event";
-import { M_POLL_START } from "matrix-events-sdk";
-import React, { createContext, ReactElement, useContext, useRef } from 'react';
-import { Room } from 'matrix-js-sdk/src/models/room';
-import { MatrixClient } from 'matrix-js-sdk/src/client';
-import { THREAD_RELATION_TYPE } from 'matrix-js-sdk/src/models/thread';
+import { M_POLL_START } from "matrix-js-sdk/src/@types/polls";
+import React, { createContext, ReactElement, ReactNode, useContext, useRef } from "react";
+import { Room } from "matrix-js-sdk/src/models/room";
+import { MatrixClient } from "matrix-js-sdk/src/client";
+import { THREAD_RELATION_TYPE } from "matrix-js-sdk/src/models/thread";
 
 import { _t } from "../../../languageHandler";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
-import { CollapsibleButton } from './CollapsibleButton';
-import ContextMenu, { aboveLeftOf, AboveLeftOf, useContextMenu } from '../../structures/ContextMenu';
-import dis from '../../../dispatcher/dispatcher';
-import EmojiPicker from '../emojipicker/EmojiPicker';
+import { CollapsibleButton } from "./CollapsibleButton";
+import { MenuProps } from "../../structures/ContextMenu";
+import dis from "../../../dispatcher/dispatcher";
 import ErrorDialog from "../dialogs/ErrorDialog";
 import LocationButton from "../location/LocationButton";
 import Modal from "../../../Modal";
@@ -39,15 +38,17 @@ import RoomContext from "../../../contexts/RoomContext";
 import { useDispatcher } from "../../../hooks/useDispatcher";
 import { chromeFileInputFix } from "../../../utils/BrowserWorkarounds";
 import IconizedContextMenu, { IconizedContextMenuOptionList } from "../context_menus/IconizedContextMenu";
-import { useSettingValue } from "../../../hooks/useSettings";
 import { EmojiButton } from "./EmojiButton";
+import { filterBoolean } from "../../../utils/arrays";
+import { useSettingValue } from "../../../hooks/useSettings";
+import { ButtonEvent } from "../elements/AccessibleButton";
 
 interface IProps {
     addEmoji: (emoji: string) => boolean;
     haveRecording: boolean;
     isMenuOpen: boolean;
     isStickerPickerOpen: boolean;
-    menuPosition?: AboveLeftOf;
+    menuPosition?: MenuProps;
     onRecordStartEndClick: () => void;
     relation?: IEventRelation;
     setStickerPickerOpen: (isStickerPickerOpen: boolean) => void;
@@ -63,17 +64,17 @@ type OverflowMenuCloser = () => void;
 export const OverflowMenuContext = createContext<OverflowMenuCloser | null>(null);
 
 const MessageComposerButtons: React.FC<IProps> = (props: IProps) => {
-    const matrixClient: MatrixClient = useContext(MatrixClientContext);
-    const { room, roomId, narrow } = useContext(RoomContext);
+    const matrixClient = useContext(MatrixClientContext);
+    const { room, narrow } = useContext(RoomContext);
 
     const isWysiwygLabEnabled = useSettingValue<boolean>("feature_wysiwyg_composer");
 
-    if (props.haveRecording) {
+    if (!matrixClient || !room || props.haveRecording) {
         return null;
     }
 
-    let mainButtons: ReactElement[];
-    let moreButtons: ReactElement[];
+    let mainButtons: ReactNode[];
+    let moreButtons: ReactNode[];
     if (narrow) {
         mainButtons = [
             isWysiwygLabEnabled ? (
@@ -92,7 +93,7 @@ const MessageComposerButtons: React.FC<IProps> = (props: IProps) => {
             voiceRecordingButton(props, narrow),
             startVoiceBroadcastButton(props),
             props.showPollsButton ? pollButton(room, props.relation) : null,
-            showLocationButton(props, room, roomId, matrixClient),
+            showLocationButton(props, room, matrixClient),
         ];
     } else {
         mainButtons = [
@@ -112,12 +113,12 @@ const MessageComposerButtons: React.FC<IProps> = (props: IProps) => {
             voiceRecordingButton(props, narrow),
             startVoiceBroadcastButton(props),
             props.showPollsButton ? pollButton(room, props.relation) : null,
-            showLocationButton(props, room, roomId, matrixClient),
+            showLocationButton(props, room, matrixClient),
         ];
     }
 
-    mainButtons = mainButtons.filter((x: ReactElement) => x);
-    moreButtons = moreButtons.filter((x: ReactElement) => x);
+    mainButtons = filterBoolean(mainButtons);
+    moreButtons = filterBoolean(moreButtons);
 
     const moreOptionsClasses = classNames({
         mx_MessageComposer_button: true,
@@ -126,7 +127,7 @@ const MessageComposerButtons: React.FC<IProps> = (props: IProps) => {
     });
 
     return (
-        <UploadButtonContextProvider roomId={roomId} relation={props.relation}>
+        <UploadButtonContextProvider roomId={room.roomId} relation={props.relation}>
             {mainButtons}
             {moreButtons.length > 0 && (
                 <AccessibleTooltipButton
@@ -173,17 +174,18 @@ export const UploadButtonContext = createContext<UploadButtonFn | null>(null);
 
 interface IUploadButtonProps {
     roomId: string;
-    relation?: IEventRelation | null;
+    relation?: IEventRelation;
+    children: ReactNode;
 }
 
 // We put the file input outside the UploadButton component so that it doesn't get killed when the context menu closes.
 const UploadButtonContextProvider: React.FC<IUploadButtonProps> = ({ roomId, relation, children }) => {
     const cli = useContext(MatrixClientContext);
     const roomContext = useContext(RoomContext);
-    const uploadInput = useRef<HTMLInputElement>();
+    const uploadInput = useRef<HTMLInputElement>(null);
 
-    const onUploadClick = () => {
-        if (cli.isGuest()) {
+    const onUploadClick = (): void => {
+        if (cli?.isGuest()) {
             dis.dispatch({ action: "require_registration" });
             return;
         }
@@ -196,12 +198,12 @@ const UploadButtonContextProvider: React.FC<IUploadButtonProps> = ({ roomId, rel
         }
     });
 
-    const onUploadFileInputChange = (ev: React.ChangeEvent<HTMLInputElement>) => {
-        if (ev.target.files.length === 0) return;
+    const onUploadFileInputChange = (ev: React.ChangeEvent<HTMLInputElement>): void => {
+        if (ev.target.files?.length === 0) return;
 
         // Take a copy, so we can safely reset the value of the form control
         ContentMessages.sharedInstance().sendContentListToRoom(
-            Array.from(ev.target.files),
+            Array.from(ev.target.files!),
             roomId,
             relation,
             cli,
@@ -233,11 +235,11 @@ const UploadButtonContextProvider: React.FC<IUploadButtonProps> = ({ roomId, rel
 };
 
 // Must be rendered within an UploadButtonContextProvider
-const UploadButton = () => {
+const UploadButton: React.FC = () => {
     const overflowMenuCloser = useContext(OverflowMenuContext);
     const uploadButtonFn = useContext(UploadButtonContext);
 
-    const onClick = () => {
+    const onClick = (): void => {
         uploadButtonFn?.();
         overflowMenuCloser?.(); // close overflow menu
     };
@@ -303,7 +305,7 @@ class PollButton extends React.PureComponent<IPollButtonProps> {
     public static contextType = OverflowMenuContext;
     public context!: React.ContextType<typeof OverflowMenuContext>;
 
-    private onCreateClick = () => {
+    private onCreateClick = (): void => {
         this.context?.(); // close overflow menu
         const canSend = this.props.room.currentState.maySendEvent(
             M_POLL_START.name,
@@ -316,7 +318,7 @@ class PollButton extends React.PureComponent<IPollButtonProps> {
             });
         } else {
             const threadId =
-                this.props.relation?.rel_type === THREAD_RELATION_TYPE.name ? this.props.relation.event_id : null;
+                this.props.relation?.rel_type === THREAD_RELATION_TYPE.name ? this.props.relation.event_id : undefined;
 
             Modal.createDialog(
                 PollCreateDialog,
@@ -331,7 +333,7 @@ class PollButton extends React.PureComponent<IPollButtonProps> {
         }
     };
 
-    public render() {
+    public render(): React.ReactNode {
         // do not allow sending polls within threads at this time
         if (this.props.relation?.rel_type === THREAD_RELATION_TYPE.name) return null;
 
@@ -346,18 +348,13 @@ class PollButton extends React.PureComponent<IPollButtonProps> {
     }
 }
 
-function showLocationButton(
-    props: IProps,
-    room: Room,
-    roomId: string,
-    matrixClient: MatrixClient,
-): ReactElement | null {
-    const sender = room.getMember(matrixClient.getUserId()!);
+function showLocationButton(props: IProps, room: Room, matrixClient: MatrixClient): ReactElement | null {
+    const sender = room.getMember(matrixClient.getSafeUserId());
 
     return props.showLocationButton && sender ? (
         <LocationButton
             key="location"
-            roomId={roomId}
+            roomId={room.roomId}
             relation={props.relation}
             sender={sender}
             menuPosition={props.menuPosition}
@@ -367,18 +364,18 @@ function showLocationButton(
 
 interface WysiwygToggleButtonProps {
     isRichTextEnabled: boolean;
-    onClick: MouseEventHandler<HTMLDivElement>;
+    onClick: (ev: ButtonEvent) => void;
 }
 
-function ComposerModeButton({ isRichTextEnabled, onClick }: WysiwygToggleButtonProps) {
+function ComposerModeButton({ isRichTextEnabled, onClick }: WysiwygToggleButtonProps): JSX.Element {
     const title = isRichTextEnabled ? _t("Hide formatting") : _t("Show formatting");
 
     return (
         <CollapsibleButton
             className="mx_MessageComposer_button"
             iconClassName={classNames({
-                mx_MessageComposer_plain_text: isRichTextEnabled,
-                mx_MessageComposer_rich_text: !isRichTextEnabled,
+                mx_MessageComposer_plain_text: !isRichTextEnabled,
+                mx_MessageComposer_rich_text: isRichTextEnabled,
             })}
             onClick={onClick}
             title={title}

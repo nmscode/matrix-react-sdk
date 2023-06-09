@@ -28,12 +28,12 @@ interface IProps {
 }
 
 interface IState {
-    phase: Phase;
+    phase?: Phase;
     lostKeys: boolean;
 }
 
 export default class CompleteSecurity extends React.Component<IProps, IState> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
         const store = SetupEncryptionStore.sharedInstance();
         store.on("update", this.onStoreUpdate);
@@ -57,7 +57,7 @@ export default class CompleteSecurity extends React.Component<IProps, IState> {
         store.stop();
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const { phase, lostKeys } = this.state;
         let icon;
         let title;

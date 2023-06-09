@@ -18,6 +18,7 @@ limitations under the License.
 import React from "react";
 import { CrossSigningKeys } from "matrix-js-sdk/src/client";
 import { logger } from "matrix-js-sdk/src/logger";
+import { UIAFlow } from "matrix-js-sdk/src/matrix";
 
 import { MatrixClientPeg } from "../../../../MatrixClientPeg";
 import { _t } from "../../../../languageHandler";
@@ -31,12 +32,12 @@ import InteractiveAuthDialog from "../InteractiveAuthDialog";
 interface IProps {
     accountPassword?: string;
     tokenLogin?: boolean;
-    onFinished?: (success: boolean) => void;
+    onFinished: (success?: boolean) => void;
 }
 
 interface IState {
     error: Error | null;
-    canUploadKeysWithPasswordOnly?: boolean;
+    canUploadKeysWithPasswordOnly: boolean | null;
     accountPassword: string;
 }
 
@@ -46,7 +47,7 @@ interface IState {
  * may need to complete some steps to proceed.
  */
 export default class CreateCrossSigningDialog extends React.PureComponent<IProps, IState> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
 
         this.state = {
@@ -72,7 +73,7 @@ export default class CreateCrossSigningDialog extends React.PureComponent<IProps
 
     private async queryKeyUploadAuth(): Promise<void> {
         try {
-            await MatrixClientPeg.get().uploadDeviceSigningKeys(null, {} as CrossSigningKeys);
+            await MatrixClientPeg.get().uploadDeviceSigningKeys(undefined, {} as CrossSigningKeys);
             // We should never get here: the server should always require
             // UI auth to upload device signing keys. If we do, we upload
             // no keys which would be a no-op.
@@ -82,7 +83,7 @@ export default class CreateCrossSigningDialog extends React.PureComponent<IProps
                 logger.log("uploadDeviceSigningKeys advertised no flows!");
                 return;
             }
-            const canUploadKeysWithPasswordOnly = error.data.flows.some((f) => {
+            const canUploadKeysWithPasswordOnly = error.data.flows.some((f: UIAFlow) => {
                 return f.stages.length === 1 && f.stages[0] === "m.login.password";
             });
             this.setState({
@@ -167,7 +168,7 @@ export default class CreateCrossSigningDialog extends React.PureComponent<IProps
         this.props.onFinished(false);
     };
 
-    render() {
+    public render(): React.ReactNode {
         let content;
         if (this.state.error) {
             content = (

@@ -19,7 +19,7 @@ limitations under the License.
 */
 
 import React from "react";
-import { uniq, sortBy } from "lodash";
+import { uniq, sortBy, uniqBy, ListIteratee } from "lodash";
 import EMOTICON_REGEX from "emojibase-regex/emoticon";
 import { Room } from "matrix-js-sdk/src/models/room";
 
@@ -35,6 +35,7 @@ import { TimelineRenderingType } from '../contexts/RoomContext';
 import * as recent from '../emojipicker/recent';
 import { decryptFile } from '../utils/DecryptFile';
 import { mediaFromMxc } from '../customisations/Media';
+import { filterBoolean } from "../utils/arrays";
 
 const LIMIT = 20;
 
@@ -58,7 +59,11 @@ const SORTED_EMOJI: ISortedEmoji[] = EMOJI.sort((a, b) => {
     _orderBy: index,
 }));
 
-function score(query, space) {
+function score(query: string, space: string[] | string): number {
+    if (Array.isArray(space)) {
+        return Math.min(...space.map((s) => score(query, s)));
+    }
+
     const index = space.indexOf(query);
     if (index === -1) {
         return Infinity;
@@ -75,8 +80,8 @@ function colonsTrimmed(str: string): string {
 }
 
 export default class EmojiProvider extends AutocompleteProvider {
-    matcher: QueryMatcher<ISortedEmoji>;
-    nameMatcher: QueryMatcher<ISortedEmoji>;
+    public matcher: QueryMatcher<ISortedEmoji>;
+    public nameMatcher: QueryMatcher<ISortedEmoji>;
     private readonly recentlyUsed: IEmoji[];
     private emotes: Map<string, string>;
     private emotesPromise: Promise<Map<string, string>>;
@@ -151,7 +156,7 @@ export default class EmojiProvider extends AutocompleteProvider {
             // Do second match with shouldMatchWordsOnly in order to match against 'name'
             completions = completions.concat(this.nameMatcher.match(matchedString));
 
-            let sorters = [];
+            const sorters: ListIteratee<ISortedEmoji>[] = [];
             // make sure that emoticons come first
             sorters.push((c) => score(matchedString, c.emoji.emoticon || ""));
 
@@ -173,11 +178,27 @@ export default class EmojiProvider extends AutocompleteProvider {
             completions = completions.slice(0, LIMIT);
 
             // Do a second sort to place emoji matching with frequently used one on top
-            sorters = [];
+            const recentlyUsedAutocomplete: ISortedEmoji[] = [];
             this.recentlyUsed.forEach((emoji) => {
-                sorters.push((c) => score(emoji.shortcodes[0], c.emoji.shortcodes[0]));
+                if (emoji.shortcodes[0].indexOf(trimmedMatch) === 0) {
+                    recentlyUsedAutocomplete.push({ emoji: emoji, _orderBy: 0 });
+                }
             });
-            completions = sortBy<ISortedEmoji>(uniq(completions), sorters);
+
+            //if there is an exact shortcode match in the frequently used emojis, it goes before everything
+            for (let i = 0; i < recentlyUsedAutocomplete.length; i++) {
+                if (recentlyUsedAutocomplete[i].emoji.shortcodes[0] === trimmedMatch) {
+                    const exactMatchEmoji = recentlyUsedAutocomplete[i];
+                    for (let j = i; j > 0; j--) {
+                        recentlyUsedAutocomplete[j] = recentlyUsedAutocomplete[j - 1];
+                    }
+                    recentlyUsedAutocomplete[0] = exactMatchEmoji;
+                    break;
+                }
+            }
+
+            completions = recentlyUsedAutocomplete.concat(completions);
+            completions = uniqBy(completions, "emoji");
 
             return completions.map(c => ({
                 completion: this.emotes[c.emoji.hexcode]? ":"+c.emoji.hexcode+":":c.emoji.unicode,
@@ -186,17 +207,17 @@ export default class EmojiProvider extends AutocompleteProvider {
                         <span>{ this.emotes[c.emoji.hexcode]? ":"+c.emoji.hexcode+":":c.emoji.unicode }</span>
                     </PillCompletion>
                 ),
-                range,
+                range: range!,
             }));
         }
         return [];
     }
 
-    getName() {
+    public getName(): string {
         return "😃 " + _t("Emoji");
     }
 
-    renderCompletions(completions: React.ReactNode[]): React.ReactNode {
+    public renderCompletions(completions: React.ReactNode[]): React.ReactNode {
         return (
             <div
                 className="mx_Autocomplete_Completion_container_pill"

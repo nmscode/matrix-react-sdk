@@ -38,7 +38,7 @@ import IconizedContextMenu, {
     IconizedContextMenuOption,
     IconizedContextMenuOptionList,
 } from "../context_menus/IconizedContextMenu";
-import { aboveLeftOf, ContextMenuButton, useContextMenu } from "../../structures/ContextMenu";
+import { aboveRightOf, ContextMenuButton, useContextMenu } from "../../structures/ContextMenu";
 import { Alignment } from "../elements/Tooltip";
 import { ButtonEvent } from "../elements/AccessibleButton";
 import AccessibleTooltipButton from "../elements/AccessibleTooltipButton";
@@ -81,7 +81,7 @@ const DeviceButton: FC<DeviceButtonProps> = ({
     if (showMenu) {
         const buttonRect = buttonRef.current!.getBoundingClientRect();
         contextMenu = (
-            <IconizedContextMenu {...aboveLeftOf(buttonRect)} onFinished={closeMenu}>
+            <IconizedContextMenu {...aboveRightOf(buttonRect, undefined, 10)} onFinished={closeMenu}>
                 <IconizedContextMenuOptionList>
                     {devices.map((d) => (
                         <IconizedContextMenuOption key={d.deviceId} label={d.label} onClick={() => selectDevice(d)} />
@@ -101,6 +101,7 @@ const DeviceButton: FC<DeviceButtonProps> = ({
         >
             <AccessibleTooltipButton
                 className={`mx_CallView_deviceButton mx_CallView_deviceButton_${kind}`}
+                inputRef={buttonRef}
                 title={muted ? mutedTitle : unmutedTitle}
                 alignment={Alignment.Top}
                 onClick={toggle}
@@ -109,7 +110,6 @@ const DeviceButton: FC<DeviceButtonProps> = ({
             {devices.length > 1 ? (
                 <ContextMenuButton
                     className="mx_CallView_deviceListButton"
-                    inputRef={buttonRef}
                     onClick={openMenu}
                     isExpanded={showMenu}
                     label={deviceListLabel}
@@ -150,7 +150,7 @@ export const Lobby: FC<LobbyProps> = ({ room, joinCallButtonDisabledTooltip, con
     }, [videoMuted, setVideoMuted]);
 
     const [videoStream, audioInputs, videoInputs] = useAsyncMemo(
-        async () => {
+        async (): Promise<[MediaStream | null, MediaDeviceInfo[], MediaDeviceInfo[]]> => {
             let devices = await MediaDeviceHandler.getDevices();
 
             // We get the preview stream before requesting devices: this is because
@@ -158,14 +158,14 @@ export const Lobby: FC<LobbyProps> = ({ room, joinCallButtonDisabledTooltip, con
             // non-blank labels for the devices.
             let stream: MediaStream | null = null;
             try {
-                if (devices.audioinput.length > 0) {
+                if (devices!.audioinput.length > 0) {
                     // Holding just an audio stream will be enough to get us all device labels, so
                     // if video is muted, don't bother requesting video.
                     stream = await navigator.mediaDevices.getUserMedia({
                         audio: true,
-                        video: !videoMuted && devices.videoinput.length > 0 && { deviceId: videoInputId },
+                        video: !videoMuted && devices!.videoinput.length > 0 && { deviceId: videoInputId },
                     });
-                } else if (devices.videoinput.length > 0) {
+                } else if (devices!.videoinput.length > 0) {
                     // We have to resort to a video stream, even if video is supposed to be muted.
                     stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: videoInputId } });
                 }
@@ -182,7 +182,7 @@ export const Lobby: FC<LobbyProps> = ({ room, joinCallButtonDisabledTooltip, con
                 stream = null;
             }
 
-            return [stream, devices.audioinput, devices.videoinput];
+            return [stream, devices?.audioinput ?? [], devices?.videoinput ?? []];
         },
         [videoInputId, videoMuted],
         [null, [], []],
@@ -210,7 +210,7 @@ export const Lobby: FC<LobbyProps> = ({ room, joinCallButtonDisabledTooltip, con
     }, [videoStream]);
 
     const onConnectClick = useCallback(
-        async (ev: ButtonEvent) => {
+        async (ev: ButtonEvent): Promise<void> => {
             ev.preventDefault();
             setConnecting(true);
             try {
@@ -298,7 +298,7 @@ const StartCallView: FC<StartCallViewProps> = ({ room, resizing, call, setStarti
     const [connected, setConnected] = useState(() => call !== null && isConnected(call.connectionState));
     useEffect(() => {
         if (call !== null) {
-            const onConnectionState = (state: ConnectionState) => setConnected(isConnected(state));
+            const onConnectionState = (state: ConnectionState): void => setConnected(isConnected(state));
             call.on(CallEvent.ConnectionState, onConnectionState);
             return () => {
                 call.off(CallEvent.ConnectionState, onConnectionState);
@@ -306,14 +306,14 @@ const StartCallView: FC<StartCallViewProps> = ({ room, resizing, call, setStarti
         }
     }, [call]);
 
-    const connect = useCallback(async () => {
+    const connect = useCallback(async (): Promise<void> => {
         setStartingCall(true);
         await ElementCall.create(room);
         await connectDeferred.promise;
     }, [room, setStartingCall, connectDeferred]);
 
     useEffect(() => {
-        (async () => {
+        (async (): Promise<void> => {
             // If the call was successfully started, connect automatically
             if (call !== null) {
                 try {
@@ -335,7 +335,7 @@ const StartCallView: FC<StartCallViewProps> = ({ room, resizing, call, setStarti
                 <AppTile
                     app={call.widget}
                     room={room}
-                    userId={cli.credentials.userId}
+                    userId={cli.credentials.userId!}
                     creatorUserId={call.widget.creatorUserId}
                     waitForIframeLoad={call.widget.waitForIframeLoad}
                     showMenubar={false}
@@ -358,7 +358,7 @@ const JoinCallView: FC<JoinCallViewProps> = ({ room, resizing, call }) => {
     const members = useParticipatingMembers(call);
     const joinCallButtonDisabledTooltip = useJoinCallButtonDisabledTooltip(call);
 
-    const connect = useCallback(async () => {
+    const connect = useCallback(async (): Promise<void> => {
         // Disconnect from any other active calls first, since we don't yet support holding
         await Promise.all([...CallStore.instance.activeCalls].map((call) => call.disconnect()));
         await call.connect();
@@ -402,7 +402,7 @@ const JoinCallView: FC<JoinCallViewProps> = ({ room, resizing, call }) => {
             <AppTile
                 app={call.widget}
                 room={room}
-                userId={cli.credentials.userId}
+                userId={cli.credentials.userId!}
                 creatorUserId={call.widget.creatorUserId}
                 waitForIframeLoad={call.widget.waitForIframeLoad}
                 showMenubar={false}

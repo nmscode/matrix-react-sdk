@@ -19,6 +19,7 @@ import { fireEvent, render, screen, waitForElementToBeRemoved } from "@testing-l
 import { mocked, MockedObject } from "jest-mock";
 import { createClient, MatrixClient } from "matrix-js-sdk/src/matrix";
 import fetchMock from "fetch-mock-jest";
+import { DELEGATED_OIDC_COMPATIBILITY, IdentityProviderBrand } from "matrix-js-sdk/src/@types/auth";
 
 import SdkConfig from "../../../../src/SdkConfig";
 import { mkServerConfig, mockPlatformPeg, unmockPlatformPeg } from "../../../test-utils";
@@ -60,7 +61,7 @@ describe("Login", function () {
 
     afterEach(function () {
         fetchMock.restore();
-        SdkConfig.unset(); // we touch the config, so clean up
+        SdkConfig.reset(); // we touch the config, so clean up
         unmockPlatformPeg();
     });
 
@@ -85,7 +86,7 @@ describe("Login", function () {
             disable_custom_urls: false,
         });
         const { container } = getComponent();
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
         expect(container.querySelector("form")).toBeTruthy();
 
@@ -94,7 +95,7 @@ describe("Login", function () {
 
     it("should show form without change server link when custom URLs disabled", async () => {
         const { container } = getComponent();
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
         expect(container.querySelector("form")).toBeTruthy();
         expect(container.querySelectorAll(".mx_ServerPicker_change")).toHaveLength(0);
@@ -104,7 +105,7 @@ describe("Login", function () {
         mockClient.loginFlows.mockResolvedValue({ flows: [{ type: "m.login.sso" }] });
 
         const { container } = getComponent();
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
         const ssoButton = container.querySelector(".mx_SSOButton");
         expect(ssoButton).toBeTruthy();
@@ -114,7 +115,7 @@ describe("Login", function () {
         mockClient.loginFlows.mockResolvedValue({ flows: [{ type: "m.login.password" }, { type: "m.login.sso" }] });
 
         const { container } = getComponent();
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
         expect(container.querySelector("form")).toBeTruthy();
 
@@ -146,7 +147,7 @@ describe("Login", function () {
         });
 
         const { container } = getComponent();
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
         const ssoButtons = container.querySelectorAll(".mx_SSOButton");
         expect(ssoButtons.length).toBe(3);
@@ -162,7 +163,7 @@ describe("Login", function () {
         });
 
         const { container } = getComponent();
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
         const ssoButtons = container.querySelectorAll(".mx_SSOButton");
         expect(ssoButtons.length).toBe(1);
@@ -178,9 +179,9 @@ describe("Login", function () {
         });
 
         const { container, rerender } = render(getRawComponent());
-        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading..."));
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
 
-        fireEvent.click(container.querySelector(".mx_SSOButton"));
+        fireEvent.click(container.querySelector(".mx_SSOButton")!);
         expect(platform.startSingleSignOn.mock.calls[0][0].baseUrl).toBe("https://matrix.org");
 
         fetchMock.get("https://server2/_matrix/client/versions", {
@@ -189,7 +190,67 @@ describe("Login", function () {
         });
         rerender(getRawComponent("https://server2"));
 
-        fireEvent.click(container.querySelector(".mx_SSOButton"));
+        fireEvent.click(container.querySelector(".mx_SSOButton")!);
         expect(platform.startSingleSignOn.mock.calls[1][0].baseUrl).toBe("https://server2");
+    });
+
+    it("should show single Continue button if OIDC MSC3824 compatibility is given by server", async () => {
+        mockClient.loginFlows.mockResolvedValue({
+            flows: [
+                {
+                    type: "m.login.sso",
+                    [DELEGATED_OIDC_COMPATIBILITY.name]: true,
+                },
+                {
+                    type: "m.login.password",
+                },
+            ],
+        });
+
+        const { container } = getComponent();
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
+
+        const ssoButtons = container.querySelectorAll(".mx_SSOButton");
+
+        expect(ssoButtons.length).toBe(1);
+        expect(ssoButtons[0].textContent).toBe("Continue");
+
+        // no password form visible
+        expect(container.querySelector("form")).toBeFalsy();
+    });
+
+    it("should show branded SSO buttons", async () => {
+        const idpsWithIcons = Object.values(IdentityProviderBrand).map((brand) => ({
+            id: brand,
+            brand,
+            name: `Provider ${brand}`,
+        }));
+
+        mockClient.loginFlows.mockResolvedValue({
+            flows: [
+                {
+                    type: "m.login.sso",
+                    identity_providers: [
+                        ...idpsWithIcons,
+                        {
+                            id: "foo",
+                            name: "Provider foo",
+                        },
+                    ],
+                },
+            ],
+        });
+
+        const { container } = getComponent();
+        await waitForElementToBeRemoved(() => screen.queryAllByLabelText("Loading…"));
+
+        for (const idp of idpsWithIcons) {
+            const ssoButton = container.querySelector(`.mx_SSOButton.mx_SSOButton_brand_${idp.brand}`);
+            expect(ssoButton).toBeTruthy();
+            expect(ssoButton?.querySelector(`img[alt="${idp.brand}"]`)).toBeTruthy();
+        }
+
+        const ssoButtons = container.querySelectorAll(".mx_SSOButton");
+        expect(ssoButtons.length).toBe(idpsWithIcons.length + 1);
     });
 });

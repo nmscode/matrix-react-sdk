@@ -66,7 +66,7 @@ export class MockClientWithEventEmitter extends EventEmitter {
  * ```
  */
 export const getMockClientWithEventEmitter = (
-    mockProperties: Partial<Record<MethodLikeKeys<MatrixClient>, unknown>>,
+    mockProperties: Partial<Record<keyof MatrixClient, unknown>>,
 ): MockedObject<MatrixClient> => {
     const mock = mocked(new MockClientWithEventEmitter(mockProperties) as unknown as MatrixClient);
 
@@ -92,6 +92,7 @@ export const unmockClientPeg = () => jest.spyOn(MatrixClientPeg, "get").mockRest
  */
 export const mockClientMethodsUser = (userId = "@alice:domain") => ({
     getUserId: jest.fn().mockReturnValue(userId),
+    getSafeUserId: jest.fn().mockReturnValue(userId),
     getUser: jest.fn().mockReturnValue(new User(userId)),
     isGuest: jest.fn().mockReturnValue(false),
     mxcUrlToHttp: jest.fn().mockReturnValue("mock-mxcUrlToHttp"),
@@ -125,6 +126,7 @@ export const mockClientMethodsServer = (): Partial<Record<MethodLikeKeys<MatrixC
     getCapabilities: jest.fn().mockReturnValue({}),
     getClientWellKnown: jest.fn().mockReturnValue({}),
     doesServerSupportUnstableFeature: jest.fn().mockResolvedValue(false),
+    isVersionSupported: jest.fn().mockResolvedValue(false),
     getVersions: jest.fn().mockResolvedValue({}),
     isFallbackICEServerAllowed: jest.fn(),
 });
@@ -141,15 +143,15 @@ export const mockClientMethodsCrypto = (): Partial<
     Record<MethodLikeKeys<MatrixClient> & PropertyLikeKeys<MatrixClient>, unknown>
 > => ({
     isCryptoEnabled: jest.fn(),
-    isSecretStorageReady: jest.fn(),
     isCrossSigningReady: jest.fn(),
     isKeyBackupKeyStored: jest.fn(),
     getCrossSigningCacheCallbacks: jest.fn().mockReturnValue({ getCrossSigningKeyCache: jest.fn() }),
     getStoredCrossSigningForUser: jest.fn(),
     checkKeyBackup: jest.fn().mockReturnValue({}),
+    secretStorage: { hasKey: jest.fn() },
     crypto: {
+        isSecretStorageReady: jest.fn(),
         getSessionBackupPrivateKey: jest.fn(),
-        secretStorage: { hasKey: jest.fn() },
         crossSigningInfo: {
             getId: jest.fn(),
             isStoredInSecretStorage: jest.fn(),

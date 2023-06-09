@@ -19,7 +19,8 @@ import React, { createRef } from "react";
 import AutoHideScrollbar, { IProps as AutoHideScrollbarProps } from "./AutoHideScrollbar";
 import UIStore, { UI_EVENTS } from "../../stores/UIStore";
 
-export type IProps<T extends keyof JSX.IntrinsicElements> = Omit<AutoHideScrollbarProps<T>, "onWheel"> & {
+export type IProps<T extends keyof JSX.IntrinsicElements> = Omit<AutoHideScrollbarProps<T>, "onWheel" | "element"> & {
+    element?: T;
     // If true, the scrollbar will append mx_IndicatorScrollbar_leftOverflowIndicator
     // and mx_IndicatorScrollbar_rightOverflowIndicator elements to the list for positioning
     // by the parent element.
@@ -43,11 +44,11 @@ export default class IndicatorScrollbar<T extends keyof JSX.IntrinsicElements> e
     IState
 > {
     private autoHideScrollbar = createRef<AutoHideScrollbar<any>>();
-    private scrollElement: HTMLDivElement;
-    private likelyTrackpadUser: boolean = null;
+    private scrollElement?: HTMLDivElement;
+    private likelyTrackpadUser: boolean | null = null;
     private checkAgainForTrackpad = 0; // ts in milliseconds to recheck this._likelyTrackpadUser
 
-    constructor(props: IProps<T>) {
+    public constructor(props: IProps<T>) {
         super(props);
 
         this.state = {
@@ -84,6 +85,7 @@ export default class IndicatorScrollbar<T extends keyof JSX.IntrinsicElements> e
     }
 
     private checkOverflow = (): void => {
+        if (!this.scrollElement) return;
         const hasTopOverflow = this.scrollElement.scrollTop > 0;
         const hasBottomOverflow =
             this.scrollElement.scrollHeight > this.scrollElement.scrollTop + this.scrollElement.clientHeight;
@@ -177,7 +179,7 @@ export default class IndicatorScrollbar<T extends keyof JSX.IntrinsicElements> e
         }
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { children, trackHorizontalOverflow, verticalScrollsHorizontally, ...otherProps } = this.props;
 

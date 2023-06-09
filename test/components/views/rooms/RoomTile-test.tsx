@@ -22,6 +22,7 @@ import { Room } from "matrix-js-sdk/src/models/room";
 import { RoomStateEvent } from "matrix-js-sdk/src/models/room-state";
 import { Widget } from "matrix-widget-api";
 import { MatrixEvent } from "matrix-js-sdk/src/matrix";
+import { Thread } from "matrix-js-sdk/src/models/thread";
 
 import type { RoomMember } from "matrix-js-sdk/src/models/room-member";
 import type { ClientWidgetApi } from "matrix-widget-api";
@@ -32,17 +33,21 @@ import {
     useMockedCalls,
     setupAsyncStoreWithClient,
     filterConsole,
+    flushPromises,
+    mkMessage,
 } from "../../../test-utils";
 import { CallStore } from "../../../../src/stores/CallStore";
 import RoomTile from "../../../../src/components/views/rooms/RoomTile";
 import { DefaultTagID } from "../../../../src/stores/room-list/models";
 import DMRoomMap from "../../../../src/utils/DMRoomMap";
-import { MatrixClientPeg } from "../../../../src/MatrixClientPeg";
 import PlatformPeg from "../../../../src/PlatformPeg";
 import BasePlatform from "../../../../src/BasePlatform";
 import { WidgetMessagingStore } from "../../../../src/stores/widgets/WidgetMessagingStore";
 import { VoiceBroadcastInfoState } from "../../../../src/voice-broadcast";
 import { mkVoiceBroadcastInfoStateEvent } from "../../../voice-broadcast/utils/test-utils";
+import { TestSdkContext } from "../../../TestSdkContext";
+import { SDKContext } from "../../../../src/contexts/SDKContext";
+import { MessagePreviewStore } from "../../../../src/stores/room-list/MessagePreviewStore";
 
 describe("RoomTile", () => {
     jest.spyOn(PlatformPeg, "get").mockReturnValue({
@@ -50,40 +55,82 @@ describe("RoomTile", () => {
     } as unknown as BasePlatform);
     useMockedCalls();
 
-    const setUpVoiceBroadcast = (state: VoiceBroadcastInfoState): void => {
+    const setUpVoiceBroadcast = async (state: VoiceBroadcastInfoState): Promise<void> => {
         voiceBroadcastInfoEvent = mkVoiceBroadcastInfoStateEvent(
             room.roomId,
             state,
-            client.getUserId(),
-            client.getDeviceId(),
+            client.getSafeUserId(),
+            client.getDeviceId()!,
         );
 
-        act(() => {
+        await act(async () => {
             room.currentState.setStateEvents([voiceBroadcastInfoEvent]);
+            await flushPromises();
         });
     };
 
     const renderRoomTile = (): void => {
         renderResult = render(
-            <RoomTile room={room} showMessagePreview={false} isMinimized={false} tag={DefaultTagID.Untagged} />,
+            <SDKContext.Provider value={sdkContext}>
+                <RoomTile
+                    room={room}
+                    showMessagePreview={showMessagePreview}
+                    isMinimized={false}
+                    tag={DefaultTagID.Untagged}
+                />
+            </SDKContext.Provider>,
         );
     };
 
     let client: Mocked<MatrixClient>;
-    let restoreConsole: () => void;
     let voiceBroadcastInfoEvent: MatrixEvent;
     let room: Room;
     let renderResult: RenderResult;
+    let sdkContext: TestSdkContext;
+    let showMessagePreview = false;
+
+    filterConsole(
+        // irrelevant for this test
+        "Room !1:example.org does not have an m.room.create event",
+    );
+
+    const addMessageToRoom = (ts: number) => {
+        const message = mkMessage({
+            event: true,
+            room: room.roomId,
+            msg: "test message",
+            user: client.getSafeUserId(),
+            ts,
+        });
+
+        room.timeline.push(message);
+    };
+
+    const addThreadMessageToRoom = (ts: number) => {
+        const message = mkMessage({
+            event: true,
+            room: room.roomId,
+            msg: "test thread reply",
+            user: client.getSafeUserId(),
+            ts,
+        });
+
+        // Mock thread reply for tests.
+        jest.spyOn(room, "getThreads").mockReturnValue([
+            // @ts-ignore
+            {
+                lastReply: () => message,
+                timeline: [],
+            } as Thread,
+        ]);
+    };
 
     beforeEach(() => {
-        restoreConsole = filterConsole(
-            // irrelevant for this test
-            "Room !1:example.org does not have an m.room.create event",
-        );
+        sdkContext = new TestSdkContext();
 
-        stubClient();
-        client = mocked(MatrixClientPeg.get());
-        DMRoomMap.makeShared();
+        client = mocked(stubClient());
+        sdkContext.client = client;
+        DMRoomMap.makeShared(client);
 
         room = new Room("!1:example.org", client, "@alice:example.org", {
             pendingEventOrdering: PendingEventOrdering.Detached,
@@ -92,130 +139,199 @@ describe("RoomTile", () => {
         client.getRoom.mockImplementation((roomId) => (roomId === room.roomId ? room : null));
         client.getRooms.mockReturnValue([room]);
         client.reEmitter.reEmit(room, [RoomStateEvent.Events]);
-
-        renderRoomTile();
     });
 
     afterEach(() => {
-        restoreConsole();
-        jest.clearAllMocks();
+        // @ts-ignore
+        MessagePreviewStore.instance.previews = new Map<string, Map<TagID | TAG_ANY, MessagePreview | null>>();
+        jest.restoreAllMocks();
     });
 
-    it("should render the room", () => {
-        expect(renderResult.container).toMatchSnapshot();
-    });
-
-    describe("when a call starts", () => {
-        let call: MockedCall;
-        let widget: Widget;
-
+    describe("when message previews are not enabled", () => {
         beforeEach(() => {
-            setupAsyncStoreWithClient(CallStore.instance, client);
-            setupAsyncStoreWithClient(WidgetMessagingStore.instance, client);
-
-            MockedCall.create(room, "1");
-            const maybeCall = CallStore.instance.getCall(room.roomId);
-            if (!(maybeCall instanceof MockedCall)) throw new Error("Failed to create call");
-            call = maybeCall;
-
-            widget = new Widget(call.widget);
-            WidgetMessagingStore.instance.storeMessaging(widget, room.roomId, {
-                stop: () => {},
-            } as unknown as ClientWidgetApi);
+            renderRoomTile();
         });
 
-        afterEach(() => {
-            renderResult.unmount();
-            call.destroy();
-            client.reEmitter.stopReEmitting(room, [RoomStateEvent.Events]);
-            WidgetMessagingStore.instance.stopMessaging(widget, room.roomId);
+        it("should render the room", () => {
+            expect(renderResult.container).toMatchSnapshot();
         });
 
-        it("tracks connection state", async () => {
-            screen.getByText("Video");
+        describe("when a call starts", () => {
+            let call: MockedCall;
+            let widget: Widget;
 
-            // Insert an await point in the connection method so we can inspect
-            // the intermediate connecting state
-            let completeConnection: () => void;
-            const connectionCompleted = new Promise<void>((resolve) => (completeConnection = resolve));
-            jest.spyOn(call, "performConnection").mockReturnValue(connectionCompleted);
-
-            await Promise.all([
-                (async () => {
-                    await screen.findByText("Joining…");
-                    const joinedFound = screen.findByText("Joined");
-                    completeConnection();
-                    await joinedFound;
-                })(),
-                call.connect(),
-            ]);
-
-            await Promise.all([screen.findByText("Video"), call.disconnect()]);
-        });
-
-        it("tracks participants", () => {
-            const alice: [RoomMember, Set<string>] = [mkRoomMember(room.roomId, "@alice:example.org"), new Set(["a"])];
-            const bob: [RoomMember, Set<string>] = [
-                mkRoomMember(room.roomId, "@bob:example.org"),
-                new Set(["b1", "b2"]),
-            ];
-            const carol: [RoomMember, Set<string>] = [mkRoomMember(room.roomId, "@carol:example.org"), new Set(["c"])];
-
-            expect(screen.queryByLabelText(/participant/)).toBe(null);
-
-            act(() => {
-                call.participants = new Map([alice]);
-            });
-            expect(screen.getByLabelText("1 participant").textContent).toBe("1");
-
-            act(() => {
-                call.participants = new Map([alice, bob, carol]);
-            });
-            expect(screen.getByLabelText("4 participants").textContent).toBe("4");
-
-            act(() => {
-                call.participants = new Map();
-            });
-            expect(screen.queryByLabelText(/participant/)).toBe(null);
-        });
-
-        describe("and a live broadcast starts", () => {
             beforeEach(() => {
-                setUpVoiceBroadcast(VoiceBroadcastInfoState.Started);
+                setupAsyncStoreWithClient(CallStore.instance, client);
+                setupAsyncStoreWithClient(WidgetMessagingStore.instance, client);
+
+                MockedCall.create(room, "1");
+                const maybeCall = CallStore.instance.getCall(room.roomId);
+                if (!(maybeCall instanceof MockedCall)) throw new Error("Failed to create call");
+                call = maybeCall;
+
+                widget = new Widget(call.widget);
+                WidgetMessagingStore.instance.storeMessaging(widget, room.roomId, {
+                    stop: () => {},
+                } as unknown as ClientWidgetApi);
             });
 
-            it("should still render the call subtitle", () => {
-                expect(screen.queryByText("Video")).toBeInTheDocument();
-                expect(screen.queryByText("Live")).not.toBeInTheDocument();
+            afterEach(() => {
+                renderResult.unmount();
+                call.destroy();
+                client.reEmitter.stopReEmitting(room, [RoomStateEvent.Events]);
+                WidgetMessagingStore.instance.stopMessaging(widget, room.roomId);
             });
-        });
-    });
 
-    describe("when a live voice broadcast starts", () => {
-        beforeEach(() => {
-            setUpVoiceBroadcast(VoiceBroadcastInfoState.Started);
-        });
+            it("tracks connection state", async () => {
+                screen.getByText("Video");
 
-        it("should render the »Live« subtitle", () => {
-            expect(screen.queryByText("Live")).toBeInTheDocument();
-        });
+                // Insert an await point in the connection method so we can inspect
+                // the intermediate connecting state
+                let completeConnection: () => void = () => {};
+                const connectionCompleted = new Promise<void>((resolve) => (completeConnection = resolve));
+                jest.spyOn(call, "performConnection").mockReturnValue(connectionCompleted);
 
-        describe("and the broadcast stops", () => {
-            beforeEach(() => {
-                const stopEvent = mkVoiceBroadcastInfoStateEvent(
-                    room.roomId,
-                    VoiceBroadcastInfoState.Stopped,
-                    client.getUserId(),
-                    client.getDeviceId(),
-                    voiceBroadcastInfoEvent,
-                );
+                await Promise.all([
+                    (async () => {
+                        await screen.findByText("Joining…");
+                        const joinedFound = screen.findByText("Joined");
+                        completeConnection();
+                        await joinedFound;
+                    })(),
+                    call.connect(),
+                ]);
+
+                await Promise.all([screen.findByText("Video"), call.disconnect()]);
+            });
+
+            it("tracks participants", () => {
+                const alice: [RoomMember, Set<string>] = [
+                    mkRoomMember(room.roomId, "@alice:example.org"),
+                    new Set(["a"]),
+                ];
+                const bob: [RoomMember, Set<string>] = [
+                    mkRoomMember(room.roomId, "@bob:example.org"),
+                    new Set(["b1", "b2"]),
+                ];
+                const carol: [RoomMember, Set<string>] = [
+                    mkRoomMember(room.roomId, "@carol:example.org"),
+                    new Set(["c"]),
+                ];
+
+                expect(screen.queryByLabelText(/participant/)).toBe(null);
+
                 act(() => {
-                    room.currentState.setStateEvents([stopEvent]);
+                    call.participants = new Map([alice]);
+                });
+                expect(screen.getByLabelText("1 participant").textContent).toBe("1");
+
+                act(() => {
+                    call.participants = new Map([alice, bob, carol]);
+                });
+                expect(screen.getByLabelText("4 participants").textContent).toBe("4");
+
+                act(() => {
+                    call.participants = new Map();
+                });
+                expect(screen.queryByLabelText(/participant/)).toBe(null);
+            });
+
+            describe("and a live broadcast starts", () => {
+                beforeEach(async () => {
+                    await setUpVoiceBroadcast(VoiceBroadcastInfoState.Started);
+                });
+
+                it("should still render the call subtitle", () => {
+                    expect(screen.queryByText("Video")).toBeInTheDocument();
+                    expect(screen.queryByText("Live")).not.toBeInTheDocument();
                 });
             });
+        });
 
-            it("should not render the »Live« subtitle", () => {
-                expect(screen.queryByText("Live")).not.toBeInTheDocument();
+        describe("when a live voice broadcast starts", () => {
+            beforeEach(async () => {
+                await setUpVoiceBroadcast(VoiceBroadcastInfoState.Started);
+            });
+
+            it("should render the »Live« subtitle", () => {
+                expect(screen.queryByText("Live")).toBeInTheDocument();
+            });
+
+            describe("and the broadcast stops", () => {
+                beforeEach(async () => {
+                    const stopEvent = mkVoiceBroadcastInfoStateEvent(
+                        room.roomId,
+                        VoiceBroadcastInfoState.Stopped,
+                        client.getSafeUserId(),
+                        client.getDeviceId()!,
+                        voiceBroadcastInfoEvent,
+                    );
+                    await act(async () => {
+                        room.currentState.setStateEvents([stopEvent]);
+                        await flushPromises();
+                    });
+                });
+
+                it("should not render the »Live« subtitle", () => {
+                    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+                });
+            });
+        });
+    });
+
+    describe("when message previews are enabled", () => {
+        beforeEach(() => {
+            showMessagePreview = true;
+        });
+
+        it("should render a room without a message as expected", async () => {
+            renderRoomTile();
+            // flush promises here because the preview is created asynchronously
+            await flushPromises();
+            expect(renderResult.asFragment()).toMatchSnapshot();
+        });
+
+        describe("and there is a message in the room", () => {
+            beforeEach(() => {
+                addMessageToRoom(23);
+            });
+
+            it("should render as expected", async () => {
+                renderRoomTile();
+                expect(await screen.findByText("test message")).toBeInTheDocument();
+                expect(renderResult.asFragment()).toMatchSnapshot();
+            });
+        });
+
+        describe("and there is a message in a thread", () => {
+            beforeEach(() => {
+                addThreadMessageToRoom(23);
+            });
+
+            it("should render as expected", async () => {
+                renderRoomTile();
+                expect(await screen.findByText("test thread reply")).toBeInTheDocument();
+                expect(renderResult.asFragment()).toMatchSnapshot();
+            });
+        });
+
+        describe("and there is a message and a thread without a reply", () => {
+            beforeEach(() => {
+                addMessageToRoom(23);
+
+                // Mock thread reply for tests.
+                jest.spyOn(room, "getThreads").mockReturnValue([
+                    // @ts-ignore
+                    {
+                        lastReply: () => null,
+                        timeline: [],
+                    } as Thread,
+                ]);
+            });
+
+            it("should render the message preview", async () => {
+                renderRoomTile();
+                expect(await screen.findByText("test message")).toBeInTheDocument();
             });
         });
     });

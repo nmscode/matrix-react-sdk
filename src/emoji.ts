@@ -21,9 +21,9 @@ import SHORTCODES from 'emojibase-data/en/shortcodes/iamcal.json';
 
 export interface IEmoji {
     label: string;
-    group?: number;
+    group: number;
     hexcode: string;
-    order?: number;
+    order: number;
     shortcodes: string[];
     tags?: string[];
     unicode: string;
@@ -37,7 +37,8 @@ export interface IEmoji {
 const UNICODE_TO_EMOJI = new Map<string, IEmoji>(); // not exported as gets for it are handled by getEmojiFromUnicode
 export const EMOTICON_TO_EMOJI = new Map<string, IEmoji>();
 
-export const getEmojiFromUnicode = (unicode) => UNICODE_TO_EMOJI.get(stripVariation(unicode));
+export const getEmojiFromUnicode = (unicode: string): IEmoji | undefined =>
+    UNICODE_TO_EMOJI.get(stripVariation(unicode));
 
 const isRegionalIndicator = (x: string): boolean => {
     // First verify that the string is a single character. We use Array.from
@@ -65,7 +66,7 @@ const EMOJIBASE_GROUP_ID_TO_CATEGORY = [
     "flags",
 ];
 
-export const DATA_BY_CATEGORY = {
+export const DATA_BY_CATEGORY: Record<string, IEmoji[]> = {
     people: [],
     nature: [],
     foods: [],
@@ -124,6 +125,6 @@ export const EMOJI: IEmoji[] = EMOJIBASE.map((emojiData: Omit<IEmoji, "shortcode
  * @param {string} str string to strip
  * @returns {string} stripped string
  */
-function stripVariation(str) {
+function stripVariation(str: string): string {
     return str.replace(/[\uFE00-\uFE0F]$/, "");
 }

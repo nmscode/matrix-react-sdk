@@ -25,6 +25,7 @@ import SdkConfig from "../SdkConfig";
 import SettingsStore from "../settings/SettingsStore";
 import { Protocols } from "../utils/DirectoryUtils";
 import { useLatestResult } from "./useLatestResult";
+import { useSettingValue } from "./useSettings";
 
 export const ALL_ROOMS = "ALL_ROOMS";
 const LAST_SERVER_KEY = "mx_last_room_directory_server";
@@ -38,7 +39,19 @@ export interface IPublicRoomsOpts {
 
 let thirdParty: Protocols;
 
-export const usePublicRoomDirectory = () => {
+const NSFW_KEYWORD = "nsfw";
+const cheapNsfwFilter = (room: IPublicRoomsChunkRoom): boolean =>
+    !room.name?.toLocaleLowerCase().includes(NSFW_KEYWORD) && !room.topic?.toLocaleLowerCase().includes(NSFW_KEYWORD);
+
+export const usePublicRoomDirectory = (): {
+    ready: boolean;
+    loading: boolean;
+    publicRooms: IPublicRoomsChunkRoom[];
+    protocols: Protocols | null;
+    config?: IPublicRoomDirectoryConfig | null;
+    setConfig(config: IPublicRoomDirectoryConfig | null): void;
+    search(opts: IPublicRoomsOpts): Promise<boolean>;
+} => {
     const [publicRooms, setPublicRooms] = useState<IPublicRoomsChunkRoom[]>([]);
 
     const [config, setConfigInternal] = useState<IPublicRoomDirectoryConfig | null | undefined>(undefined);
@@ -50,7 +63,9 @@ export const usePublicRoomDirectory = () => {
 
     const [updateQuery, updateResult] = useLatestResult<IRoomDirectoryOptions, IPublicRoomsChunkRoom[]>(setPublicRooms);
 
-    async function initProtocols() {
+    const showNsfwPublicRooms = useSettingValue<boolean>("SpotlightSearch.showNsfwPublicRooms");
+
+    async function initProtocols(): Promise<void> {
         if (!MatrixClientPeg.get()) {
             // We may not have a client yet when invoked from welcome page
             setReady(true);
@@ -63,7 +78,7 @@ export const usePublicRoomDirectory = () => {
         }
     }
 
-    function setConfig(config: IPublicRoomDirectoryConfig) {
+    function setConfig(config: IPublicRoomDirectoryConfig): void {
         if (!ready) {
             throw new Error("public room configuration not initialised yet");
         } else {
@@ -88,11 +103,11 @@ export const usePublicRoomDirectory = () => {
             if (query || roomTypes) {
                 opts.filter = {
                     generic_search_term: query,
-                    room_types: (await MatrixClientPeg.get().doesServerSupportUnstableFeature(
-                        "org.matrix.msc3827.stable",
-                    ))
-                        ? Array.from<RoomType | null>(roomTypes)
-                        : null,
+                    room_types:
+                        roomTypes &&
+                        (await MatrixClientPeg.get().doesServerSupportUnstableFeature("org.matrix.msc3827.stable"))
+                            ? Array.from<RoomType | null>(roomTypes)
+                            : undefined,
                 };
             }
 
@@ -100,7 +115,7 @@ export const usePublicRoomDirectory = () => {
             try {
                 setLoading(true);
                 const { chunk } = await MatrixClientPeg.get().publicRooms(opts);
-                updateResult(opts, chunk);
+                updateResult(opts, showNsfwPublicRooms ? chunk : chunk.filter(cheapNsfwFilter));
                 return true;
             } catch (e) {
                 console.error("Could not fetch public rooms for params", opts, e);
@@ -110,7 +125,7 @@ export const usePublicRoomDirectory = () => {
                 setLoading(false);
             }
         },
-        [config, updateQuery, updateResult],
+        [config, updateQuery, updateResult, showNsfwPublicRooms],
     );
 
     useEffect(() => {
@@ -128,10 +143,11 @@ export const usePublicRoomDirectory = () => {
 
         let roomServer: string = myHomeserver;
         if (
-            SdkConfig.getObject("room_directory")?.get("servers")?.includes(lsRoomServer) ||
-            SettingsStore.getValue("room_directory_servers")?.includes(lsRoomServer)
+            lsRoomServer &&
+            (SdkConfig.getObject("room_directory")?.get("servers")?.includes(lsRoomServer) ||
+                SettingsStore.getValue("room_directory_servers")?.includes(lsRoomServer))
         ) {
-            roomServer = lsRoomServer;
+            roomServer = lsRoomServer!;
         }
 
         let instanceId: string | undefined = undefined;
@@ -150,9 +166,10 @@ export const usePublicRoomDirectory = () => {
     }, [protocols]);
 
     useEffect(() => {
-        localStorage.setItem(LAST_SERVER_KEY, config?.roomServer);
-        if (config?.instanceId) {
-            localStorage.setItem(LAST_INSTANCE_KEY, config?.instanceId);
+        if (!config) return;
+        localStorage.setItem(LAST_SERVER_KEY, config.roomServer);
+        if (config.instanceId) {
+            localStorage.setItem(LAST_INSTANCE_KEY, config.instanceId);
         } else {
             localStorage.removeItem(LAST_INSTANCE_KEY);
         }

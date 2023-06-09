@@ -28,19 +28,25 @@ import { TimelineRenderingType } from "../contexts/RoomContext";
 const AT_ROOM_REGEX = /@\S*/g;
 
 export default class NotifProvider extends AutocompleteProvider {
-    constructor(public room: Room, renderingType?: TimelineRenderingType) {
+    public constructor(public room: Room, renderingType?: TimelineRenderingType) {
         super({ commandRegex: AT_ROOM_REGEX, renderingType });
     }
 
-    async getCompletions(query: string, selection: ISelectionRange, force = false, limit = -1): Promise<ICompletion[]> {
+    public async getCompletions(
+        query: string,
+        selection: ISelectionRange,
+        force = false,
+        limit = -1,
+    ): Promise<ICompletion[]> {
         const client = MatrixClientPeg.get();
 
-        if (!this.room.currentState.mayTriggerNotifOfType("room", client.credentials.userId)) return [];
+        if (!this.room.currentState.mayTriggerNotifOfType("room", client.credentials.userId!)) return [];
 
         const { command, range } = this.getCurrentCommand(query, selection, force);
         if (
-            command?.[0].length > 1 &&
-            ["@room", "@channel", "@everyone", "@here"].some((c) => c.startsWith(command[0]))
+            command?.[0] &&
+            command[0].length > 1 &&
+            ["@room", "@channel", "@everyone", "@here"].some((c) => c.startsWith(command![0]))
         ) {
             return [
                 {
@@ -53,18 +59,18 @@ export default class NotifProvider extends AutocompleteProvider {
                             <RoomAvatar width={24} height={24} room={this.room} />
                         </PillCompletion>
                     ),
-                    range,
+                    range: range!,
                 },
             ];
         }
         return [];
     }
 
-    getName() {
+    public getName(): string {
         return "❗️ " + _t("Room Notification");
     }
 
-    renderCompletions(completions: React.ReactNode[]): React.ReactNode {
+    public renderCompletions(completions: React.ReactNode[]): React.ReactNode {
         return (
             <div
                 className="mx_Autocomplete_Completion_container_pill mx_Autocomplete_Completion_container_truncate"

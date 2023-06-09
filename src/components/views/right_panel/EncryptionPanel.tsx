@@ -41,7 +41,7 @@ const MISMATCHES = ["m.key_mismatch", "m.user_error", "m.mismatched_sas"];
 interface IProps {
     member: RoomMember | User;
     onClose: () => void;
-    verificationRequest: VerificationRequest;
+    verificationRequest?: VerificationRequest;
     verificationRequestPromise?: Promise<VerificationRequest>;
     layout: string;
     isRoomEncrypted: boolean;
@@ -63,12 +63,12 @@ const EncryptionPanel: React.FC<IProps> = (props: IProps) => {
     }, [verificationRequest]);
 
     useEffect(() => {
-        async function awaitPromise() {
+        async function awaitPromise(): Promise<void> {
             setRequesting(true);
             const requestFromPromise = await verificationRequestPromise;
             setRequesting(false);
             setRequest(requestFromPromise);
-            setPhase(requestFromPromise.phase);
+            setPhase(requestFromPromise?.phase);
         }
         if (verificationRequestPromise) {
             awaitPromise();
@@ -103,12 +103,15 @@ const EncryptionPanel: React.FC<IProps> = (props: IProps) => {
 
     useTypedEventEmitter(request, VerificationRequestEvent.Change, changeHandler);
 
-    const onStartVerification = useCallback(async () => {
+    const onStartVerification = useCallback(async (): Promise<void> => {
         setRequesting(true);
         const cli = MatrixClientPeg.get();
         let verificationRequest_: VerificationRequest;
         try {
             const roomId = await ensureDMExists(cli, member.userId);
+            if (!roomId) {
+                throw new Error("Unable to create Room for verification");
+            }
             verificationRequest_ = await cli.requestVerificationDM(member.userId, roomId);
         } catch (e) {
             console.error("Error starting verification", e);
@@ -133,15 +136,15 @@ const EncryptionPanel: React.FC<IProps> = (props: IProps) => {
         if (!RightPanelStore.instance.isOpen) RightPanelStore.instance.togglePanel(null);
     }, [member]);
 
-    const requested =
+    const requested: boolean =
         (!request && isRequesting) ||
-        (request && (phase === PHASE_REQUESTED || phase === PHASE_UNSENT || phase === undefined));
+        (!!request && (phase === PHASE_REQUESTED || phase === PHASE_UNSENT || phase === undefined));
     const isSelfVerification = request
         ? request.isSelfVerification
         : member.userId === MatrixClientPeg.get().getUserId();
 
     if (!request || requested) {
-        const initiatedByMe = (!request && isRequesting) || (request && request.initiatedByMe);
+        const initiatedByMe = (!request && isRequesting) || (!!request && request.initiatedByMe);
         return (
             <EncryptionInfo
                 isRoomEncrypted={isRoomEncrypted}

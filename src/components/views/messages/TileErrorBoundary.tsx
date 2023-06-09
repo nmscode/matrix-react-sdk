@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { ReactNode } from "react";
 import classNames from "classnames";
 import { MatrixEvent } from "matrix-js-sdk/src/models/event";
 
@@ -30,22 +30,21 @@ import { Layout } from "../../../settings/enums/Layout";
 interface IProps {
     mxEvent: MatrixEvent;
     layout: Layout;
+    children: ReactNode;
 }
 
 interface IState {
-    error: Error;
+    error?: Error;
 }
 
 export default class TileErrorBoundary extends React.Component<IProps, IState> {
-    constructor(props) {
+    public constructor(props: IProps) {
         super(props);
 
-        this.state = {
-            error: null,
-        };
+        this.state = {};
     }
 
-    static getDerivedStateFromError(error: Error): Partial<IState> {
+    public static getDerivedStateFromError(error: Error): Partial<IState> {
         // Side effects are not permitted here, so we only update the state so
         // that the next render shows an error message.
         return { error };
@@ -68,7 +67,7 @@ export default class TileErrorBoundary extends React.Component<IProps, IState> {
         );
     };
 
-    render() {
+    public render(): ReactNode {
         if (this.state.error) {
             const { mxEvent } = this.props;
             const classes = {

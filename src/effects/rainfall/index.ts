@@ -1,5 +1,5 @@
 /*
- Copyright 2020 The Matrix.org Foundation C.I.C.
+ Copyright 2020 - 2023 The Matrix.org Foundation C.I.C.
  Copyright 2021 Josias Allestad
 
  Licensed under the Apache License, Version 2.0 (the "License");
@@ -46,17 +46,17 @@ const KEY_FRAME_INTERVAL = 15;
 export default class Rainfall implements ICanvasEffect {
     private readonly options: RainfallOptions;
 
-    constructor(options: { [key: string]: any }) {
+    public constructor(options: { [key: string]: any }) {
         this.options = { ...DefaultOptions, ...options };
     }
 
     private context: CanvasRenderingContext2D | null = null;
     private particles: Array<Raindrop> = [];
-    private lastAnimationTime: number;
+    private lastAnimationTime = 0;
 
-    public isRunning: boolean;
+    public isRunning = false;
 
-    public start = async (canvas: HTMLCanvasElement, timeout = 3000) => {
+    public start = async (canvas: HTMLCanvasElement, timeout = 3000): Promise<void> => {
         if (!canvas) {
             return;
         }
@@ -73,7 +73,7 @@ export default class Rainfall implements ICanvasEffect {
         }
     };
 
-    public stop = async () => {
+    public stop = async (): Promise<void> => {
         this.isRunning = false;
     };
 

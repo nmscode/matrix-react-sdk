@@ -101,7 +101,7 @@ export const SpaceButton = forwardRef<HTMLElement, IButtonProps>(
                 ariaLabel = _t("Jump to first invite.");
             }
 
-            const jumpToNotification = (ev: MouseEvent) => {
+            const jumpToNotification = (ev: MouseEvent): void => {
                 ev.stopPropagation();
                 ev.preventDefault();
                 SpaceStore.instance.setActiveRoomInSpace(spaceKey ?? space.roomId);
@@ -121,19 +121,20 @@ export const SpaceButton = forwardRef<HTMLElement, IButtonProps>(
             );
         }
 
-        let contextMenu: JSX.Element;
-        if (menuDisplayed && ContextMenuComponent) {
+        let contextMenu: JSX.Element | undefined;
+        if (space && menuDisplayed && handle.current && ContextMenuComponent) {
             contextMenu = (
                 <ContextMenuComponent
-                    {...toRightOf(handle.current?.getBoundingClientRect(), 0)}
+                    {...toRightOf(handle.current.getBoundingClientRect(), 0)}
                     space={space}
                     onFinished={closeMenu}
                 />
             );
         }
 
-        const viewSpaceHome = () => defaultDispatcher.dispatch({ action: Action.ViewRoom, room_id: space.roomId });
-        const activateSpace = () => SpaceStore.instance.setActiveSpace(spaceKey ?? space.roomId);
+        const viewSpaceHome = (): void =>
+            defaultDispatcher.dispatch({ action: Action.ViewRoom, room_id: space.roomId });
+        const activateSpace = (): void => SpaceStore.instance.setActiveSpace(spaceKey ?? space.roomId);
         const onClick = props.onClick ?? (selected && space ? viewSpaceHome : activateSpace);
 
         return (
@@ -184,7 +185,7 @@ interface IItemProps extends InputHTMLAttributes<HTMLLIElement> {
     onExpand?: Function;
     parents?: Set<string>;
     innerRef?: LegacyRef<HTMLLIElement>;
-    dragHandleProps?: DraggableProvidedDragHandleProps;
+    dragHandleProps?: DraggableProvidedDragHandleProps | null;
 }
 
 interface IItemState {
@@ -194,11 +195,11 @@ interface IItemState {
 }
 
 export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
-    static contextType = MatrixClientContext;
+    public static contextType = MatrixClientContext;
 
     private buttonRef = createRef<HTMLDivElement>();
 
-    constructor(props) {
+    public constructor(props: IItemProps) {
         super(props);
 
         const collapsed = SpaceTreeLevelLayoutStore.instance.getSpaceCollapsedState(
@@ -217,34 +218,34 @@ export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
         this.props.space.on(RoomEvent.Name, this.onRoomNameChange);
     }
 
-    componentWillUnmount() {
+    public componentWillUnmount(): void {
         SpaceStore.instance.off(this.props.space.roomId, this.onSpaceUpdate);
         this.props.space.off(RoomEvent.Name, this.onRoomNameChange);
     }
 
-    private onSpaceUpdate = () => {
+    private onSpaceUpdate = (): void => {
         this.setState({
             childSpaces: this.childSpaces,
         });
     };
 
-    private onRoomNameChange = () => {
+    private onRoomNameChange = (): void => {
         this.setState({
             name: this.props.space.name,
         });
     };
 
-    private get childSpaces() {
+    private get childSpaces(): Room[] {
         return SpaceStore.instance
             .getChildSpaces(this.props.space.roomId)
             .filter((s) => !this.props.parents?.has(s.roomId));
     }
 
-    private get isCollapsed() {
-        return this.state.collapsed || this.props.isPanelCollapsed;
+    private get isCollapsed(): boolean {
+        return this.state.collapsed || !!this.props.isPanelCollapsed;
     }
 
-    private toggleCollapse = (evt) => {
+    private toggleCollapse = (evt: ButtonEvent): void => {
         if (this.props.onExpand && this.isCollapsed) {
             this.props.onExpand();
         }
@@ -261,7 +262,7 @@ export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
         evt.stopPropagation();
     };
 
-    private onKeyDown = (ev: React.KeyboardEvent) => {
+    private onKeyDown = (ev: React.KeyboardEvent): void => {
         let handled = true;
         const action = getKeyBindingsManager().getRoomListAction(ev);
         const hasChildren = this.state.childSpaces?.length;
@@ -298,7 +299,7 @@ export class SpaceItem extends React.PureComponent<IItemProps, IItemState> {
         }
     };
 
-    render() {
+    public render(): React.ReactNode {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const {
             space,

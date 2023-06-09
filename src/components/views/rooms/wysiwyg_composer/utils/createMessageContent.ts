@@ -14,13 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { richToPlain, plainToRich } from "@matrix-org/matrix-wysiwyg";
 import { IContent, IEventRelation, MatrixEvent, MsgType } from "matrix-js-sdk/src/matrix";
 
-import { htmlSerializeFromMdIfNeeded } from "../../../../../editor/serialize";
 import SettingsStore from "../../../../../settings/SettingsStore";
 import { RoomPermalinkCreator } from "../../../../../utils/permalinks/Permalinks";
 import { addReplyToMessageContent } from "../../../../../utils/Reply";
-import { htmlToPlainText } from "../../../../../utils/room/htmlToPlaintext";
+
+export const EMOTE_PREFIX = "/me ";
 
 // Merges favouring the given relation
 function attachRelation(content: IContent, relation?: IEventRelation): void {
@@ -62,7 +63,9 @@ interface CreateMessageContentParams {
     editedEvent?: MatrixEvent;
 }
 
-export function createMessageContent(
+const isMatrixEvent = (e: MatrixEvent | undefined): e is MatrixEvent => e instanceof MatrixEvent;
+
+export async function createMessageContent(
     message: string,
     isHTML: boolean,
     {
@@ -72,44 +75,39 @@ export function createMessageContent(
         includeReplyLegacyFallback = true,
         editedEvent,
     }: CreateMessageContentParams,
-): IContent {
-    // TODO emote ?
-
-    const isEditing = Boolean(editedEvent);
-    const isReply = isEditing ? Boolean(editedEvent?.replyEventId) : Boolean(replyToEvent);
+): Promise<IContent> {
+    const isEditing = isMatrixEvent(editedEvent);
+    const isReply = isEditing ? Boolean(editedEvent.replyEventId) : isMatrixEvent(replyToEvent);
     const isReplyAndEditing = isEditing && isReply;
 
-    /*const isEmote = containsEmote(model);
+    const isEmote = message.startsWith(EMOTE_PREFIX);
     if (isEmote) {
-        model = stripEmoteCommand(model);
+        // if we are dealing with an emote we want to remove the prefix so that `/me` does not
+        // appear after the `* <userName>` text in the timeline
+        message = message.slice(EMOTE_PREFIX.length);
     }
-    if (startsWith(model, "//")) {
-        model = stripPrefix(model, "/");
+    if (message.startsWith("//")) {
+        // if user wants to enter a single slash at the start of a message, this
+        // is how they have to do it (due to it clashing with commands), so here we
+        // remove the first character to make sure //word displays as /word
+        message = message.slice(1);
     }
-    model = unescapeMessage(model);*/
 
-    // const body = textSerialize(model);
-
-    // TODO remove this ugly hack for replace br tag
-    const body = (isHTML && htmlToPlainText(message)) || message.replace(/<br>/g, "\n");
+    // if we're editing rich text, the message content is pure html
+    // BUT if we're not, the message content will be plain text
+    const body = isHTML ? await richToPlain(message) : message;
     const bodyPrefix = (isReplyAndEditing && getTextReplyFallback(editedEvent)) || "";
     const formattedBodyPrefix = (isReplyAndEditing && getHtmlReplyFallback(editedEvent)) || "";
 
     const content: IContent = {
-        // TODO emote
-        msgtype: MsgType.Text,
-        // TODO when available, use HTML --> Plain text conversion from wysiwyg rust model
+        msgtype: isEmote ? MsgType.Emote : MsgType.Text,
         body: isEditing ? `${bodyPrefix} * ${body}` : body,
     };
 
     // TODO markdown support
 
     const isMarkdownEnabled = SettingsStore.getValue<boolean>("MessageComposerInput.useMarkdown");
-    const formattedBody = isHTML
-        ? message
-        : isMarkdownEnabled
-        ? htmlSerializeFromMdIfNeeded(message, { forceHTML: isReply })
-        : null;
+    const formattedBody = isHTML ? message : isMarkdownEnabled ? await plainToRich(message) : null;
 
     if (formattedBody) {
         content.format = "org.matrix.custom.html";
@@ -130,6 +128,8 @@ export function createMessageContent(
 
     const newRelation = isEditing ? { ...relation, rel_type: "m.replace", event_id: editedEvent.getId() } : relation;
 
+    // TODO Do we need to attach mentions here?
+    // TODO Handle editing?
     attachRelation(content, newRelation);
 
     if (!isEditing && replyToEvent && permalinkCreator) {

@@ -53,7 +53,7 @@ import { UPDATE_EVENT } from "../../../stores/AsyncStore";
 import { isVideoRoom as calcIsVideoRoom } from "../../../utils/video-rooms";
 import LegacyCallHandler, { LegacyCallHandlerEvent } from "../../../LegacyCallHandler";
 import { useFeatureEnabled, useSettingValue } from "../../../hooks/useSettings";
-import SdkConfig, { DEFAULTS } from "../../../SdkConfig";
+import SdkConfig from "../../../SdkConfig";
 import { useEventEmitterState, useTypedEventEmitterState } from "../../../hooks/useEventEmitter";
 import { useWidgets } from "../right_panel/RoomSummaryCard";
 import { WidgetType } from "../../../widgets/WidgetType";
@@ -71,7 +71,7 @@ import { Alignment } from "../elements/Tooltip";
 import RoomCallBanner from "../beacon/RoomCallBanner";
 
 class DisabledWithReason {
-    constructor(public readonly reason: string) {}
+    public constructor(public readonly reason: string) {}
 }
 
 interface VoiceCallButtonProps {
@@ -96,7 +96,7 @@ const VoiceCallButton: FC<VoiceCallButtonProps> = ({ room, busy, setBusy, behavi
         } else {
             // behavior === "legacy_or_jitsi"
             return {
-                onClick: async (ev: ButtonEvent) => {
+                onClick: async (ev: ButtonEvent): Promise<void> => {
                     ev.preventDefault();
                     setBusy(true);
                     await LegacyCallHandler.instance.placeCall(room.roomId, CallType.Voice);
@@ -134,7 +134,7 @@ interface VideoCallButtonProps {
 const VideoCallButton: FC<VideoCallButtonProps> = ({ room, busy, setBusy, behavior }) => {
     const [menuOpen, buttonRef, openMenu, closeMenu] = useContextMenu();
 
-    const startLegacyCall = useCallback(async () => {
+    const startLegacyCall = useCallback(async (): Promise<void> => {
         setBusy(true);
         await LegacyCallHandler.instance.placeCall(room.roomId, CallType.Video);
         setBusy(false);
@@ -160,7 +160,7 @@ const VideoCallButton: FC<VideoCallButtonProps> = ({ room, busy, setBusy, behavi
             };
         } else if (behavior === "legacy_or_jitsi") {
             return {
-                onClick: async (ev: ButtonEvent) => {
+                onClick: async (ev: ButtonEvent): Promise<void> => {
                     ev.preventDefault();
                     await startLegacyCall();
                 },
@@ -168,7 +168,7 @@ const VideoCallButton: FC<VideoCallButtonProps> = ({ room, busy, setBusy, behavi
             };
         } else if (behavior === "element") {
             return {
-                onClick: async (ev: ButtonEvent) => {
+                onClick: async (ev: ButtonEvent): Promise<void> => {
                     ev.preventDefault();
                     startElementCall();
                 },
@@ -177,7 +177,7 @@ const VideoCallButton: FC<VideoCallButtonProps> = ({ room, busy, setBusy, behavi
         } else {
             // behavior === "jitsi_or_element"
             return {
-                onClick: async (ev: ButtonEvent) => {
+                onClick: async (ev: ButtonEvent): Promise<void> => {
                     ev.preventDefault();
                     openMenu();
                 },
@@ -187,7 +187,7 @@ const VideoCallButton: FC<VideoCallButtonProps> = ({ room, busy, setBusy, behavi
     }, [behavior, startLegacyCall, startElementCall, openMenu]);
 
     const onJitsiClick = useCallback(
-        async (ev: ButtonEvent) => {
+        async (ev: ButtonEvent): Promise<void> => {
             ev.preventDefault();
             closeMenu();
             await startLegacyCall();
@@ -207,7 +207,7 @@ const VideoCallButton: FC<VideoCallButtonProps> = ({ room, busy, setBusy, behavi
     let menu: JSX.Element | null = null;
     if (menuOpen) {
         const buttonRect = buttonRef.current!.getBoundingClientRect();
-        const brand = SdkConfig.get("element_call").brand ?? DEFAULTS.element_call.brand;
+        const brand = SdkConfig.get("element_call").brand;
         menu = (
             <IconizedContextMenu {...aboveLeftOf(buttonRect)} onFinished={closeMenu}>
                 <IconizedContextMenuOptionList>
@@ -250,7 +250,7 @@ const CallButtons: FC<CallButtonsProps> = ({ room }) => {
     const videoRoomsEnabled = useFeatureEnabled("feature_video_rooms");
     const isVideoRoom = useMemo(() => videoRoomsEnabled && calcIsVideoRoom(room), [videoRoomsEnabled, room]);
     const useElementCallExclusively = useMemo(() => {
-        return SdkConfig.get("element_call").use_exclusively ?? DEFAULTS.element_call.use_exclusively;
+        return SdkConfig.get("element_call").use_exclusively;
     }, []);
 
     const hasLegacyCall = useEventEmitterState(
@@ -482,19 +482,18 @@ interface IState {
 }
 
 export default class RoomHeader extends React.Component<IProps, IState> {
-    static defaultProps = {
-        editing: false,
+    public static defaultProps: Partial<IProps> = {
         inRoom: false,
         excludedRightPanelPhaseButtons: [],
         showButtons: true,
         enableRoomOptionsMenu: true,
     };
 
-    static contextType = RoomContext;
+    public static contextType = RoomContext;
     public context!: React.ContextType<typeof RoomContext>;
     private readonly client = this.props.room.client;
 
-    constructor(props: IProps, context: IState) {
+    public constructor(props: IProps, context: IState) {
         super(props, context);
         const notiStore = RoomNotificationStateStore.instance.getRoomState(props.room);
         notiStore.on(NotificationStateEvents.Update, this.onNotificationUpdate);
@@ -503,23 +502,23 @@ export default class RoomHeader extends React.Component<IProps, IState> {
         };
     }
 
-    public componentDidMount() {
+    public componentDidMount(): void {
         this.client.on(RoomStateEvent.Events, this.onRoomStateEvents);
         RightPanelStore.instance.on(UPDATE_EVENT, this.onRightPanelStoreUpdate);
     }
 
-    public componentWillUnmount() {
+    public componentWillUnmount(): void {
         this.client.removeListener(RoomStateEvent.Events, this.onRoomStateEvents);
         const notiStore = RoomNotificationStateStore.instance.getRoomState(this.props.room);
         notiStore.removeListener(NotificationStateEvents.Update, this.onNotificationUpdate);
         RightPanelStore.instance.off(UPDATE_EVENT, this.onRightPanelStoreUpdate);
     }
 
-    private onRightPanelStoreUpdate = () => {
+    private onRightPanelStoreUpdate = (): void => {
         this.setState({ rightPanelOpen: RightPanelStore.instance.isOpen });
     };
 
-    private onRoomStateEvents = (event: MatrixEvent) => {
+    private onRoomStateEvents = (event: MatrixEvent): void => {
         if (!this.props.room || event.getRoomId() !== this.props.room.roomId) {
             return;
         }
@@ -528,7 +527,7 @@ export default class RoomHeader extends React.Component<IProps, IState> {
         this.rateLimitedUpdate();
     };
 
-    private onNotificationUpdate = () => {
+    private onNotificationUpdate = (): void => {
         this.forceUpdate();
     };
 
@@ -540,18 +539,18 @@ export default class RoomHeader extends React.Component<IProps, IState> {
         { leading: true, trailing: true },
     );
 
-    private onContextMenuOpenClick = (ev: ButtonEvent) => {
+    private onContextMenuOpenClick = (ev: ButtonEvent): void => {
         ev.preventDefault();
         ev.stopPropagation();
         const target = ev.target as HTMLButtonElement;
         this.setState({ contextMenuPosition: target.getBoundingClientRect() });
     };
 
-    private onContextMenuCloseClick = () => {
+    private onContextMenuCloseClick = (): void => {
         this.setState({ contextMenuPosition: undefined });
     };
 
-    private onHideCallClick = (ev: ButtonEvent) => {
+    private onHideCallClick = (ev: ButtonEvent): void => {
         ev.preventDefault();
         defaultDispatcher.dispatch<ViewRoomPayload>({
             action: Action.ViewRoom,
@@ -592,6 +591,7 @@ export default class RoomHeader extends React.Component<IProps, IState> {
                     })}
                     onClick={this.props.onAppsClick}
                     title={this.props.appsShown ? _t("Hide Widgets") : _t("Show Widgets")}
+                    aria-checked={this.props.appsShown}
                     alignment={Alignment.Bottom}
                     key="apps"
                 />,
@@ -659,7 +659,7 @@ export default class RoomHeader extends React.Component<IProps, IState> {
         );
     }
 
-    private renderName(oobName: string) {
+    private renderName(oobName: string): JSX.Element {
         let contextMenu: JSX.Element | null = null;
         if (this.state.contextMenuPosition && this.props.room) {
             contextMenu = (
@@ -716,7 +716,7 @@ export default class RoomHeader extends React.Component<IProps, IState> {
         return <div className="mx_RoomHeader_name mx_RoomHeader_name--textonly">{roomName}</div>;
     }
 
-    public render() {
+    public render(): React.ReactNode {
         const isVideoRoom = SettingsStore.getValue("feature_video_rooms") && calcIsVideoRoom(this.props.room);
 
         let roomAvatar: JSX.Element | null = null;
@@ -743,6 +743,13 @@ export default class RoomHeader extends React.Component<IProps, IState> {
 
         const buttons = this.props.showButtons ? this.renderButtons(isVideoRoom) : null;
 
+        let oobName = _t("Join Room");
+        if (this.props.oobData && this.props.oobData.name) {
+            oobName = this.props.oobData.name;
+        }
+
+        const name = this.renderName(oobName);
+
         if (this.props.viewingCall && !isVideoRoom) {
             return (
                 <header className="mx_RoomHeader light-panel">
@@ -752,9 +759,7 @@ export default class RoomHeader extends React.Component<IProps, IState> {
                     >
                         <div className="mx_RoomHeader_avatar">{roomAvatar}</div>
                         {icon}
-                        <div className="mx_RoomHeader_name mx_RoomHeader_name--textonly mx_RoomHeader_name--small">
-                            {_t("Video call")}
-                        </div>
+                        {name}
                         {this.props.activeCall instanceof ElementCall && (
                             <GroupCallDuration groupCall={this.props.activeCall.groupCall} />
                         )}
@@ -779,16 +784,9 @@ export default class RoomHeader extends React.Component<IProps, IState> {
             );
         }
 
-        let oobName = _t("Join Room");
-        if (this.props.oobData && this.props.oobData.name) {
-            oobName = this.props.oobData.name;
-        }
-
-        const name = this.renderName(oobName);
-
         const topicElement = <RoomTopic room={this.props.room} className="mx_RoomHeader_topic" />;
 
-        const viewLabs = () =>
+        const viewLabs = (): void =>
             defaultDispatcher.dispatch({
                 action: Action.ViewUserSettings,
                 initialTabId: UserTab.Labs,

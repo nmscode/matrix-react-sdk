@@ -22,11 +22,11 @@ import SettingsStore from "./settings/SettingsStore";
 import ThemeWatcher from "./settings/watchers/ThemeWatcher";
 
 export const DEFAULT_THEME = "light";
-const HIGH_CONTRAST_THEMES = {
+const HIGH_CONTRAST_THEMES: Record<string, string> = {
     light: "light-high-contrast",
 };
 
-interface IFontFaces {
+interface IFontFaces extends Omit<Record<(typeof allowedFontFaceProps)[number], string>, "src"> {
     src: {
         format: string;
         url: string;
@@ -50,7 +50,7 @@ interface ICustomTheme {
  * Given a non-high-contrast theme, find the corresponding high-contrast one
  * if it exists, or return undefined if not.
  */
-export function findHighContrastTheme(theme: string) {
+export function findHighContrastTheme(theme: string): string | undefined {
     return HIGH_CONTRAST_THEMES[theme];
 }
 
@@ -58,7 +58,7 @@ export function findHighContrastTheme(theme: string) {
  * Given a high-contrast theme, find the corresponding non-high-contrast one
  * if it exists, or return undefined if not.
  */
-export function findNonHighContrastTheme(hcTheme: string) {
+export function findNonHighContrastTheme(hcTheme: string): string | undefined {
     for (const theme in HIGH_CONTRAST_THEMES) {
         if (HIGH_CONTRAST_THEMES[theme] === hcTheme) {
             return theme;
@@ -69,7 +69,7 @@ export function findNonHighContrastTheme(hcTheme: string) {
 /**
  * Decide whether the supplied theme is high contrast.
  */
-export function isHighContrastTheme(theme: string) {
+export function isHighContrastTheme(theme: string): boolean {
     return Object.values(HIGH_CONTRAST_THEMES).includes(theme);
 }
 
@@ -80,7 +80,7 @@ export function enumerateThemes(): { [key: string]: string } {
         "dark": _t("Dark"),
     };
     const customThemes = SettingsStore.getValue("custom_themes");
-    const customThemeNames = {};
+    const customThemeNames: Record<string, string> = {};
     for (const { name } of customThemes) {
         customThemeNames[`custom-${name}`] = name;
     }
@@ -126,31 +126,31 @@ const allowedFontFaceProps = [
     "font-variation-settings",
     "src",
     "unicode-range",
-];
+] as const;
 
 function generateCustomFontFaceCSS(faces: IFontFaces[]): string {
     return faces
         .map((face) => {
-            const src =
-                face.src &&
-                face.src
-                    .map((srcElement) => {
-                        let format;
-                        if (srcElement.format) {
-                            format = `format("${srcElement.format}")`;
-                        }
-                        if (srcElement.url) {
-                            return `url("${srcElement.url}") ${format}`;
-                        } else if (srcElement.local) {
-                            return `local("${srcElement.local}") ${format}`;
-                        }
-                        return "";
-                    })
-                    .join(", ");
-            const props = Object.keys(face).filter((prop) => allowedFontFaceProps.includes(prop));
+            const src = face.src
+                ?.map((srcElement) => {
+                    let format = "";
+                    if (srcElement.format) {
+                        format = `format("${srcElement.format}")`;
+                    }
+                    if (srcElement.url) {
+                        return `url("${srcElement.url}") ${format}`;
+                    } else if (srcElement.local) {
+                        return `local("${srcElement.local}") ${format}`;
+                    }
+                    return "";
+                })
+                .join(", ");
+            const props = Object.keys(face).filter((prop) =>
+                allowedFontFaceProps.includes(prop as (typeof allowedFontFaceProps)[number]),
+            ) as Array<(typeof allowedFontFaceProps)[number]>;
             const body = props
                 .map((prop) => {
-                    let value;
+                    let value: string;
                     if (prop === "src") {
                         value = src;
                     } else if (prop === "font-family") {
@@ -169,7 +169,7 @@ function generateCustomFontFaceCSS(faces: IFontFaces[]): string {
 function setCustomThemeVars(customTheme: ICustomTheme): void {
     const { style } = document.body;
 
-    function setCSSColorVariable(name, hexColor, doPct = true) {
+    function setCSSColorVariable(name: string, hexColor: string, doPct = true): void {
         style.setProperty(`--${name}`, hexColor);
         if (doPct) {
             // uses #rrggbbaa to define the color with alpha values at 0%, 15% and 50%
@@ -215,9 +215,9 @@ export function getCustomTheme(themeName: string): ICustomTheme {
     if (!customThemes) {
         throw new Error(`No custom themes set, can't set custom theme "${themeName}"`);
     }
-    const customTheme = customThemes.find((t) => t.name === themeName);
+    const customTheme = customThemes.find((t: ITheme) => t.name === themeName);
     if (!customTheme) {
-        const knownNames = customThemes.map((t) => t.name).join(", ");
+        const knownNames = customThemes.map((t: ITheme) => t.name).join(", ");
         throw new Error(`Can't find custom theme "${themeName}", only know ${knownNames}`);
     }
     return customTheme;
@@ -248,7 +248,7 @@ export async function setTheme(theme?: string): Promise<void> {
     const styleElements = new Map<string, HTMLLinkElement>();
     const themes = Array.from(document.querySelectorAll<HTMLLinkElement>("[data-mx-theme]"));
     themes.forEach((theme) => {
-        styleElements.set(theme.attributes["data-mx-theme"].value.toLowerCase(), theme);
+        styleElements.set(theme.dataset.mxTheme!.toLowerCase(), theme);
     });
 
     if (!styleElements.has(stylesheetName)) {
@@ -266,11 +266,11 @@ export async function setTheme(theme?: string): Promise<void> {
     // having them interact badly... but this causes a flash of unstyled app
     // which is even uglier.  So we don't.
 
-    const styleSheet = styleElements.get(stylesheetName);
+    const styleSheet = styleElements.get(stylesheetName)!;
     styleSheet.disabled = false;
 
     return new Promise((resolve, reject) => {
-        const switchTheme = function () {
+        const switchTheme = function (): void {
             // we re-enable our theme here just in case we raced with another
             // theme set request as per https://github.com/vector-im/element-web/issues/5601.
             // We could alternatively lock or similar to stop the race, but
@@ -282,16 +282,16 @@ export async function setTheme(theme?: string): Promise<void> {
             });
             const bodyStyles = global.getComputedStyle(document.body);
             if (bodyStyles.backgroundColor) {
-                const metaElement: HTMLMetaElement = document.querySelector('meta[name="theme-color"]');
+                const metaElement = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
                 metaElement.content = bodyStyles.backgroundColor;
             }
             resolve();
         };
 
-        const isStyleSheetLoaded = () =>
+        const isStyleSheetLoaded = (): boolean =>
             Boolean([...document.styleSheets].find((_styleSheet) => _styleSheet?.href === styleSheet.href));
 
-        function waitForStyleSheetLoading() {
+        function waitForStyleSheetLoading(): void {
             // turns out that Firefox preloads the CSS for link elements with
             // the disabled attribute, but Chrome doesn't.
             if (isStyleSheetLoaded()) {
@@ -306,8 +306,8 @@ export async function setTheme(theme?: string): Promise<void> {
             const intervalId = window.setInterval(() => {
                 if (isStyleSheetLoaded()) {
                     clearInterval(intervalId);
-                    styleSheet.onload = undefined;
-                    styleSheet.onerror = undefined;
+                    styleSheet.onload = null;
+                    styleSheet.onerror = null;
                     switchTheme();
                 }
 

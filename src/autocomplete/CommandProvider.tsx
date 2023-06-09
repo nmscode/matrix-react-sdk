@@ -31,9 +31,9 @@ import { TimelineRenderingType } from "../contexts/RoomContext";
 const COMMAND_RE = /(^\/\w*)(?: .*)?/g;
 
 export default class CommandProvider extends AutocompleteProvider {
-    matcher: QueryMatcher<Command>;
+    public matcher: QueryMatcher<Command>;
 
-    constructor(room: Room, renderingType?: TimelineRenderingType) {
+    public constructor(room: Room, renderingType?: TimelineRenderingType) {
         super({ commandRegex: COMMAND_RE, renderingType });
         this.matcher = new QueryMatcher(Commands, {
             keys: ["command", "args", "description"],
@@ -42,7 +42,7 @@ export default class CommandProvider extends AutocompleteProvider {
         });
     }
 
-    async getCompletions(
+    public async getCompletions(
         query: string,
         selection: ISelectionRange,
         force?: boolean,
@@ -56,10 +56,10 @@ export default class CommandProvider extends AutocompleteProvider {
         if (command[0] !== command[1]) {
             // The input looks like a command with arguments, perform exact match
             const name = command[1].slice(1); // strip leading `/`
-            if (CommandMap.has(name) && CommandMap.get(name).isEnabled()) {
+            if (CommandMap.has(name) && CommandMap.get(name)!.isEnabled()) {
                 // some commands, namely `me` don't suit having the usage shown whilst typing their arguments
-                if (CommandMap.get(name).hideCompletionAfterSpace) return [];
-                matches = [CommandMap.get(name)];
+                if (CommandMap.get(name)!.hideCompletionAfterSpace) return [];
+                matches = [CommandMap.get(name)!];
             }
         } else {
             if (query === "/") {
@@ -95,16 +95,16 @@ export default class CommandProvider extends AutocompleteProvider {
                             description={_t(result.description)}
                         />
                     ),
-                    range,
+                    range: range!,
                 };
             });
     }
 
-    getName() {
+    public getName(): string {
         return "*️⃣ " + _t("Commands");
     }
 
-    renderCompletions(completions: React.ReactNode[]): React.ReactNode {
+    public renderCompletions(completions: React.ReactNode[]): React.ReactNode {
         return (
             <div
                 className="mx_Autocomplete_Completion_container_pill"

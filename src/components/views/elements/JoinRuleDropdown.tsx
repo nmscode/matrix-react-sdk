@@ -14,10 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { ReactElement } from "react";
 import { JoinRule } from "matrix-js-sdk/src/@types/partials";
 
 import Dropdown from "./Dropdown";
+import { NonEmptyArray } from "../../../@types/common";
 
 interface IProps {
     value: JoinRule;
@@ -29,7 +30,7 @@ interface IProps {
     onChange(value: JoinRule): void;
 }
 
-const JoinRuleDropdown = ({
+const JoinRuleDropdown: React.FC<IProps> = ({
     label,
     labelInvite,
     labelPublic,
@@ -37,7 +38,7 @@ const JoinRuleDropdown = ({
     value,
     width = 448,
     onChange,
-}: IProps) => {
+}) => {
     const options = [
         <div key={JoinRule.Invite} className="mx_JoinRuleDropdown_invite">
             {labelInvite}
@@ -45,13 +46,15 @@ const JoinRuleDropdown = ({
         <div key={JoinRule.Public} className="mx_JoinRuleDropdown_public">
             {labelPublic}
         </div>,
-    ];
+    ] as NonEmptyArray<ReactElement & { key: string }>;
 
     if (labelRestricted) {
         options.unshift(
-            <div key={JoinRule.Restricted} className="mx_JoinRuleDropdown_restricted">
-                {labelRestricted}
-            </div>,
+            (
+                <div key={JoinRule.Restricted} className="mx_JoinRuleDropdown_restricted">
+                    {labelRestricted}
+                </div>
+            ) as ReactElement & { key: string },
         );
     }
 

@@ -29,7 +29,7 @@ interface IProps {
  * menu.
  */
 export default class GenericElementContextMenu extends React.Component<IProps> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
     }
 
@@ -47,7 +47,7 @@ export default class GenericElementContextMenu extends React.Component<IProps> {
         }
     };
 
-    public render(): JSX.Element {
+    public render(): React.ReactNode {
         return <div>{this.props.element}</div>;
     }
 }

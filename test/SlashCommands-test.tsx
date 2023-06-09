@@ -19,11 +19,13 @@ import { mocked } from "jest-mock";
 
 import { Command, Commands, getCommand } from "../src/SlashCommands";
 import { createTestClient } from "./test-utils";
-import { MatrixClientPeg } from "../src/MatrixClientPeg";
 import { LocalRoom, LOCAL_ROOM_ID_PREFIX } from "../src/models/LocalRoom";
 import SettingsStore from "../src/settings/SettingsStore";
 import LegacyCallHandler from "../src/LegacyCallHandler";
 import { SdkContextClass } from "../src/contexts/SDKContext";
+import Modal from "../src/Modal";
+import WidgetUtils from "../src/utils/WidgetUtils";
+import { WidgetType } from "../src/widgets/WidgetType";
 
 describe("SlashCommands", () => {
     let client: MatrixClient;
@@ -33,21 +35,23 @@ describe("SlashCommands", () => {
     let localRoom: LocalRoom;
     let command: Command;
 
-    const findCommand = (cmd: string): Command => {
+    const findCommand = (cmd: string): Command | undefined => {
         return Commands.find((command: Command) => command.command === cmd);
     };
 
     const setCurrentRoom = (): void => {
         mocked(SdkContextClass.instance.roomViewStore.getRoomId).mockReturnValue(roomId);
-        mocked(client.getRoom).mockImplementation((rId: string): Room => {
+        mocked(client.getRoom).mockImplementation((rId: string): Room | null => {
             if (rId === roomId) return room;
+            return null;
         });
     };
 
     const setCurrentLocalRoon = (): void => {
         mocked(SdkContextClass.instance.roomViewStore.getRoomId).mockReturnValue(localRoomId);
-        mocked(client.getRoom).mockImplementation((rId: string): Room => {
+        mocked(client.getRoom).mockImplementation((rId: string): Room | null => {
             if (rId === localRoomId) return localRoom;
+            return null;
         });
     };
 
@@ -55,10 +59,9 @@ describe("SlashCommands", () => {
         jest.clearAllMocks();
 
         client = createTestClient();
-        jest.spyOn(MatrixClientPeg, "get").mockReturnValue(client);
 
-        room = new Room(roomId, client, client.getUserId());
-        localRoom = new LocalRoom(localRoomId, client, client.getUserId());
+        room = new Room(roomId, client, client.getUserId()!);
+        localRoom = new LocalRoom(localRoomId, client, client.getUserId()!);
 
         jest.spyOn(SdkContextClass.instance.roomViewStore, "getRoomId");
     });
@@ -68,8 +71,15 @@ describe("SlashCommands", () => {
             const command = getCommand("/topic pizza");
             expect(command.cmd).toBeDefined();
             expect(command.args).toBeDefined();
-            await command.cmd.run("room-id", null, command.args);
+            await command.cmd!.run(client, "room-id", null, command.args);
             expect(client.setRoomTopic).toHaveBeenCalledWith("room-id", "pizza", undefined);
+        });
+
+        it("should show topic modal if no args passed", async () => {
+            const spy = jest.spyOn(Modal, "createDialog");
+            const command = getCommand("/topic")!;
+            await command.cmd!.run(client, roomId, null);
+            expect(spy).toHaveBeenCalled();
         });
     });
 
@@ -96,25 +106,25 @@ describe("SlashCommands", () => {
         ["converttoroom"],
     ])("/%s", (commandName: string) => {
         beforeEach(() => {
-            command = findCommand(commandName);
+            command = findCommand(commandName)!;
         });
 
         describe("isEnabled", () => {
             it("should return true for Room", () => {
                 setCurrentRoom();
-                expect(command.isEnabled()).toBe(true);
+                expect(command.isEnabled(client)).toBe(true);
             });
 
             it("should return false for LocalRoom", () => {
                 setCurrentLocalRoon();
-                expect(command.isEnabled()).toBe(false);
+                expect(command.isEnabled(client)).toBe(false);
             });
         });
     });
 
     describe("/tovirtual", () => {
         beforeEach(() => {
-            command = findCommand("tovirtual");
+            command = findCommand("tovirtual")!;
         });
 
         describe("isEnabled", () => {
@@ -125,12 +135,12 @@ describe("SlashCommands", () => {
 
                 it("should return true for Room", () => {
                     setCurrentRoom();
-                    expect(command.isEnabled()).toBe(true);
+                    expect(command.isEnabled(client)).toBe(true);
                 });
 
                 it("should return false for LocalRoom", () => {
                     setCurrentLocalRoon();
-                    expect(command.isEnabled()).toBe(false);
+                    expect(command.isEnabled(client)).toBe(false);
                 });
             });
 
@@ -141,12 +151,12 @@ describe("SlashCommands", () => {
 
                 it("should return false for Room", () => {
                     setCurrentRoom();
-                    expect(command.isEnabled()).toBe(false);
+                    expect(command.isEnabled(client)).toBe(false);
                 });
 
                 it("should return false for LocalRoom", () => {
                     setCurrentLocalRoon();
-                    expect(command.isEnabled()).toBe(false);
+                    expect(command.isEnabled(client)).toBe(false);
                 });
             });
         });
@@ -154,7 +164,7 @@ describe("SlashCommands", () => {
 
     describe("/remakeolm", () => {
         beforeEach(() => {
-            command = findCommand("remakeolm");
+            command = findCommand("remakeolm")!;
         });
 
         describe("isEnabled", () => {
@@ -167,12 +177,12 @@ describe("SlashCommands", () => {
 
                 it("should return true for Room", () => {
                     setCurrentRoom();
-                    expect(command.isEnabled()).toBe(true);
+                    expect(command.isEnabled(client)).toBe(true);
                 });
 
                 it("should return false for LocalRoom", () => {
                     setCurrentLocalRoon();
-                    expect(command.isEnabled()).toBe(false);
+                    expect(command.isEnabled(client)).toBe(false);
                 });
             });
 
@@ -185,12 +195,12 @@ describe("SlashCommands", () => {
 
                 it("should return false for Room", () => {
                     setCurrentRoom();
-                    expect(command.isEnabled()).toBe(false);
+                    expect(command.isEnabled(client)).toBe(false);
                 });
 
                 it("should return false for LocalRoom", () => {
                     setCurrentLocalRoon();
-                    expect(command.isEnabled()).toBe(false);
+                    expect(command.isEnabled(client)).toBe(false);
                 });
             });
         });
@@ -198,43 +208,77 @@ describe("SlashCommands", () => {
 
     describe("/part", () => {
         it("should part room matching alias if found", async () => {
-            const room1 = new Room("room-id", client, client.getUserId());
+            const room1 = new Room("room-id", client, client.getUserId()!);
             room1.getCanonicalAlias = jest.fn().mockReturnValue("#foo:bar");
-            const room2 = new Room("other-room", client, client.getUserId());
+            const room2 = new Room("other-room", client, client.getUserId()!);
             room2.getCanonicalAlias = jest.fn().mockReturnValue("#baz:bar");
             mocked(client.getRooms).mockReturnValue([room1, room2]);
 
             const command = getCommand("/part #foo:bar");
             expect(command.cmd).toBeDefined();
             expect(command.args).toBeDefined();
-            await command.cmd.run("room-id", null, command.args);
+            await command.cmd!.run(client, "room-id", null, command.args);
             expect(client.leaveRoomChain).toHaveBeenCalledWith("room-id", expect.anything());
         });
 
         it("should part room matching alt alias if found", async () => {
-            const room1 = new Room("room-id", client, client.getUserId());
+            const room1 = new Room("room-id", client, client.getUserId()!);
             room1.getAltAliases = jest.fn().mockReturnValue(["#foo:bar"]);
-            const room2 = new Room("other-room", client, client.getUserId());
+            const room2 = new Room("other-room", client, client.getUserId()!);
             room2.getAltAliases = jest.fn().mockReturnValue(["#baz:bar"]);
             mocked(client.getRooms).mockReturnValue([room1, room2]);
 
             const command = getCommand("/part #foo:bar");
             expect(command.cmd).toBeDefined();
             expect(command.args).toBeDefined();
-            await command.cmd.run("room-id", null, command.args);
+            await command.cmd!.run(client, "room-id", null, command.args!);
             expect(client.leaveRoomChain).toHaveBeenCalledWith("room-id", expect.anything());
         });
     });
 
     describe.each(["rainbow", "rainbowme"])("/%s", (commandName: string) => {
-        const command = findCommand(commandName);
+        const command = findCommand(commandName)!;
 
         it("should return usage if no args", () => {
-            expect(command.run(roomId, null, null).error).toBe(command.getUsage());
+            expect(command.run(client, roomId, null, undefined).error).toBe(command.getUsage());
         });
 
         it("should make things rainbowy", () => {
-            return expect(command.run(roomId, null, "this is a test message").promise).resolves.toMatchSnapshot();
+            return expect(
+                command.run(client, roomId, null, "this is a test message").promise,
+            ).resolves.toMatchSnapshot();
+        });
+    });
+
+    describe.each(["shrug", "tableflip", "unflip", "lenny"])("/%s", (commandName: string) => {
+        const command = findCommand(commandName)!;
+
+        it("should match snapshot with no args", () => {
+            return expect(command.run(client, roomId, null).promise).resolves.toMatchSnapshot();
+        });
+
+        it("should match snapshot with args", () => {
+            return expect(
+                command.run(client, roomId, null, "this is a test message").promise,
+            ).resolves.toMatchSnapshot();
+        });
+    });
+
+    describe("/addwidget", () => {
+        it("should parse html iframe snippets", async () => {
+            jest.spyOn(WidgetUtils, "canUserModifyWidgets").mockReturnValue(true);
+            const spy = jest.spyOn(WidgetUtils, "setRoomWidget");
+            const command = findCommand("addwidget")!;
+            await command.run(client, roomId, null, '<iframe src="https://element.io"></iframe>');
+            expect(spy).toHaveBeenCalledWith(
+                client,
+                roomId,
+                expect.any(String),
+                WidgetType.CUSTOM,
+                "https://element.io",
+                "Custom",
+                {},
+            );
         });
     });
 });

@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 import React from "react";
-import { IGeneratedSas } from "matrix-js-sdk/src/crypto/verification/SAS";
 import { DeviceInfo } from "matrix-js-sdk/src//crypto/deviceinfo";
+import { GeneratedSas } from "matrix-js-sdk/src/crypto-api/verification";
 
 import { _t, _td } from "../../../languageHandler";
 import { PendingActionSpinner } from "../right_panel/EncryptionInfo";
@@ -29,7 +29,7 @@ interface IProps {
     device?: DeviceInfo;
     onDone: () => void;
     onCancel: () => void;
-    sas: IGeneratedSas;
+    sas: GeneratedSas;
     isSelf?: boolean;
     inDialog?: boolean; // whether this component is being shown in a dialog and to use DialogButtons
 }
@@ -39,12 +39,12 @@ interface IState {
     cancelling?: boolean;
 }
 
-function capFirst(s) {
+function capFirst(s: string): string {
     return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 export default class VerificationShowSas extends React.Component<IProps, IState> {
-    constructor(props: IProps) {
+    public constructor(props: IProps) {
         super(props);
 
         this.state = {
@@ -69,7 +69,7 @@ export default class VerificationShowSas extends React.Component<IProps, IState>
         this.props.onCancel();
     };
 
-    render() {
+    public render(): React.ReactNode {
         let sasDisplay;
         let sasCaption;
         if (this.props.sas.emoji) {

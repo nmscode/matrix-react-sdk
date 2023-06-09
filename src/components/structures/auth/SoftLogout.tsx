@@ -14,16 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from "react";
+import React, { ChangeEvent, SyntheticEvent } from "react";
 import { logger } from "matrix-js-sdk/src/logger";
 import { Optional } from "matrix-events-sdk";
-import { ISSOFlow, LoginFlow } from "matrix-js-sdk/src/@types/auth";
+import { ISSOFlow, LoginFlow, SSOAction } from "matrix-js-sdk/src/@types/auth";
+import { MatrixError } from "matrix-js-sdk/src/http-api";
 
 import { _t } from "../../../languageHandler";
 import dis from "../../../dispatcher/dispatcher";
 import * as Lifecycle from "../../../Lifecycle";
 import Modal from "../../../Modal";
-import { MatrixClientPeg } from "../../../MatrixClientPeg";
+import { IMatrixClientCreds, MatrixClientPeg } from "../../../MatrixClientPeg";
 import { sendLoginRequest } from "../../../Login";
 import AuthPage from "../../views/auth/AuthPage";
 import { SSO_HOMESERVER_URL_KEY, SSO_ID_SERVER_URL_KEY } from "../../../BasePlatform";
@@ -44,7 +45,7 @@ enum LoginView {
     Unsupported,
 }
 
-const STATIC_FLOWS_TO_VIEWS = {
+const STATIC_FLOWS_TO_VIEWS: Record<string, LoginView> = {
     "m.login.password": LoginView.Password,
     "m.login.cas": LoginView.CAS,
     "m.login.sso": LoginView.SSO,
@@ -101,7 +102,7 @@ export default class SoftLogout extends React.Component<IProps, IState> {
         }
     }
 
-    private onClearAll = () => {
+    private onClearAll = (): void => {
         Modal.createDialog(ConfirmWipeDeviceDialog, {
             onFinished: (wipeData) => {
                 if (!wipeData) return;
@@ -112,9 +113,9 @@ export default class SoftLogout extends React.Component<IProps, IState> {
         });
     };
 
-    private async initLogin() {
+    private async initLogin(): Promise<void> {
         const queryParams = this.props.realQueryParams;
-        const hasAllParams = queryParams && queryParams["loginToken"];
+        const hasAllParams = queryParams?.["loginToken"];
         if (hasAllParams) {
             this.setState({ loginView: LoginView.Loading });
             this.trySsoLogin();
@@ -133,15 +134,15 @@ export default class SoftLogout extends React.Component<IProps, IState> {
         this.setState({ flows, loginView: chosenView });
     }
 
-    private onPasswordChange = (ev) => {
+    private onPasswordChange = (ev: ChangeEvent<HTMLInputElement>): void => {
         this.setState({ password: ev.target.value });
     };
 
-    private onForgotPassword = () => {
+    private onForgotPassword = (): void => {
         dis.dispatch({ action: "start_password_recovery" });
     };
 
-    private onPasswordLogin = async (ev) => {
+    private onPasswordLogin = async (ev: SyntheticEvent): Promise<void> => {
         ev.preventDefault();
         ev.stopPropagation();
 
@@ -156,15 +157,19 @@ export default class SoftLogout extends React.Component<IProps, IState> {
                 user: MatrixClientPeg.get().getUserId(),
             },
             password: this.state.password,
-            device_id: MatrixClientPeg.get().getDeviceId(),
+            device_id: MatrixClientPeg.get().getDeviceId() ?? undefined,
         };
 
-        let credentials = null;
+        let credentials: IMatrixClientCreds;
         try {
             credentials = await sendLoginRequest(hsUrl, isUrl, loginType, loginParams);
         } catch (e) {
             let errorText = _t("Failed to re-authenticate due to a homeserver problem");
-            if (e.errcode === "M_FORBIDDEN" && (e.httpStatus === 401 || e.httpStatus === 403)) {
+            if (
+                e instanceof MatrixError &&
+                e.errcode === "M_FORBIDDEN" &&
+                (e.httpStatus === 401 || e.httpStatus === 403)
+            ) {
                 errorText = _t("Incorrect password");
             }
 
@@ -181,18 +186,24 @@ export default class SoftLogout extends React.Component<IProps, IState> {
         });
     };
 
-    private async trySsoLogin() {
+    private async trySsoLogin(): Promise<void> {
         this.setState({ busy: true });
 
         const hsUrl = localStorage.getItem(SSO_HOMESERVER_URL_KEY);
+        if (!hsUrl) {
+            logger.error("Homeserver URL unknown for SSO login callback");
+            this.setState({ busy: false, loginView: LoginView.Unsupported });
+            return;
+        }
+
         const isUrl = localStorage.getItem(SSO_ID_SERVER_URL_KEY) || MatrixClientPeg.get().getIdentityServerUrl();
         const loginType = "m.login.token";
         const loginParams = {
             token: this.props.realQueryParams["loginToken"],
-            device_id: MatrixClientPeg.get().getDeviceId(),
+            device_id: MatrixClientPeg.get().getDeviceId() ?? undefined,
         };
 
-        let credentials = null;
+        let credentials: IMatrixClientCreds;
         try {
             credentials = await sendLoginRequest(hsUrl, isUrl, loginType, loginParams);
         } catch (e) {
@@ -212,7 +223,7 @@ export default class SoftLogout extends React.Component<IProps, IState> {
     }
 
     private renderPasswordForm(introText: Optional<string>): JSX.Element {
-        let error: JSX.Element = null;
+        let error: JSX.Element | undefined;
         if (this.state.errorText) {
             error = <span className="mx_Login_error">{this.state.errorText}</span>;
         }
@@ -256,17 +267,18 @@ export default class SoftLogout extends React.Component<IProps, IState> {
                     loginType={loginType}
                     fragmentAfterLogin={this.props.fragmentAfterLogin}
                     primary={!this.state.flows.find((flow) => flow.type === "m.login.password")}
+                    action={SSOAction.LOGIN}
                 />
             </div>
         );
     }
 
-    private renderSignInSection() {
+    private renderSignInSection(): JSX.Element {
         if (this.state.loginView === LoginView.Loading) {
             return <Spinner />;
         }
 
-        let introText = null; // null is translated to something area specific in this function
+        let introText: string | null = null; // null is translated to something area specific in this function
         if (this.state.keyBackupNeeded) {
             introText = _t(
                 "Regain access to your account and recover encryption keys stored in this session. " +
@@ -325,7 +337,7 @@ export default class SoftLogout extends React.Component<IProps, IState> {
         );
     }
 
-    public render() {
+    public render(): React.ReactNode {
         return (
             <AuthPage>
                 <AuthHeader />
@@ -338,7 +350,7 @@ export default class SoftLogout extends React.Component<IProps, IState> {
                     <h2>{_t("Clear personal data")}</h2>
                     <p>
                         {_t(
-                            "Warning: Your personal data (including encryption keys) is still stored " +
+                            "Warning: your personal data (including encryption keys) is still stored " +
                                 "in this session. Clear it if you're finished using this session, or want to sign " +
                                 "in to another account.",
                         )}
