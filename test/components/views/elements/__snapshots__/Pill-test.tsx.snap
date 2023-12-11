@@ -35,13 +35,12 @@ exports[`<Pill> should render the expected pill for @room 1`] = `
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="3"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           R
         </span>
@@ -67,13 +66,12 @@ exports[`<Pill> should render the expected pill for a known user not in the room
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="5"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           U
         </span>
@@ -99,13 +97,12 @@ exports[`<Pill> should render the expected pill for a message in another room 1`
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="3"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           R
         </span>
@@ -131,13 +128,12 @@ exports[`<Pill> should render the expected pill for a message in the same room 1
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="4"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           U
         </span>
@@ -163,13 +159,12 @@ exports[`<Pill> should render the expected pill for a room alias 1`] = `
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="3"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           R
         </span>
@@ -195,13 +190,12 @@ exports[`<Pill> should render the expected pill for a space 1`] = `
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="2"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           S
         </span>
@@ -250,13 +244,12 @@ exports[`<Pill> when rendering a pill for a room should render the expected pill
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="3"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           R
         </span>
@@ -282,13 +275,12 @@ exports[`<Pill> when rendering a pill for a user in the room should render as ex
       >
         <span
           aria-hidden="true"
-          class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+          class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
           data-color="4"
           data-testid="avatar-img"
           data-type="round"
           role="presentation"
           style="--cpd-avatar-size: 16px;"
-          title=""
         >
           U
         </span>

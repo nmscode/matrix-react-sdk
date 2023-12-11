@@ -19,6 +19,7 @@ import { RoomMember } from "matrix-js-sdk/src/matrix";
 import { AvatarStack, Tooltip } from "@vector-im/compound-web";
 
 import MemberAvatar from "../avatars/MemberAvatar";
+import AccessibleButton, { ButtonEvent } from "./AccessibleButton";
 
 interface IProps extends HTMLAttributes<HTMLSpanElement> {
     members: RoomMember[];
@@ -27,31 +28,47 @@ interface IProps extends HTMLAttributes<HTMLSpanElement> {
     tooltipLabel?: string;
     tooltipShortcut?: string;
     children?: ReactNode;
+    viewUserOnClick?: boolean;
+    onClick?: (e: ButtonEvent) => void | Promise<void>;
 }
 
-const FacePile: FC<IProps> = ({ members, size, overflow, tooltipLabel, tooltipShortcut, children, ...props }) => {
+const FacePile: FC<IProps> = ({
+    members,
+    size,
+    overflow,
+    tooltipLabel,
+    tooltipShortcut,
+    children,
+    viewUserOnClick = true,
+    ...props
+}) => {
     const faces = members.map(
         tooltipLabel
             ? (m) => <MemberAvatar key={m.userId} member={m} size={size} hideTitle />
             : (m) => (
                   <Tooltip key={m.userId} label={m.name} shortcut={tooltipShortcut}>
-                      <MemberAvatar member={m} size={size} viewUserOnClick={!props.onClick} hideTitle />
+                      <MemberAvatar
+                          member={m}
+                          size={size}
+                          viewUserOnClick={!props.onClick && viewUserOnClick}
+                          hideTitle
+                      />
                   </Tooltip>
               ),
     );
 
     const pileContents = (
         <>
-            {overflow ? <span className="mx_FacePile_more" /> : null}
             {faces}
+            {overflow ? <span className="mx_FacePile_more" /> : null}
         </>
     );
 
     const content = (
-        <div className="mx_FacePile">
+        <AccessibleButton className="mx_FacePile" kind="link_inline" onClick={props.onClick ?? null}>
             <AvatarStack>{pileContents}</AvatarStack>
             {children}
-        </div>
+        </AccessibleButton>
     );
 
     return tooltipLabel ? (

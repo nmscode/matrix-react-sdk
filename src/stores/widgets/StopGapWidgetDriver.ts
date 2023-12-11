@@ -32,6 +32,7 @@ import {
     WidgetEventCapability,
     WidgetKind,
     ISearchUserDirectoryResult,
+    IGetMediaConfigResult,
 } from "matrix-widget-api";
 import {
     ClientEvent,
@@ -149,7 +150,7 @@ export class StopGapWidgetDriver extends WidgetDriver {
                 WidgetEventCapability.forStateEvent(EventDirection.Receive, "org.matrix.msc3401.call.member").raw,
             );
 
-            const sendRecvRoomEvents = ["io.element.call.encryption_key"];
+            const sendRecvRoomEvents = ["io.element.call.encryption_keys"];
             for (const eventType of sendRecvRoomEvents) {
                 this.allowedCapabilities.add(WidgetEventCapability.forRoomEvent(EventDirection.Send, eventType).raw);
                 this.allowedCapabilities.add(WidgetEventCapability.forRoomEvent(EventDirection.Receive, eventType).raw);
@@ -522,5 +523,19 @@ export class StopGapWidgetDriver extends WidgetDriver {
                 avatarUrl: r.avatar_url,
             })),
         };
+    }
+
+    public async getMediaConfig(): Promise<IGetMediaConfigResult> {
+        const client = MatrixClientPeg.safeGet();
+
+        return await client.getMediaConfig();
+    }
+
+    public async uploadFile(file: XMLHttpRequestBodyInit): Promise<{ contentUri: string }> {
+        const client = MatrixClientPeg.safeGet();
+
+        const uploadResult = await client.uploadContent(file);
+
+        return { contentUri: uploadResult.content_uri };
     }
 }

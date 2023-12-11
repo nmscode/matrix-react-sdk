@@ -52,7 +52,7 @@ const SeeMoreOrLess: VFC<{ roomMember: RoomMember }> = ({ roomMember }) => {
             </p>
             {shouldTruncate && (
                 <AccessibleButton kind="link" onClick={() => setSeeMore(!seeMore)}>
-                    {seeMore ? _t("See less") : _t("See more")}
+                    {seeMore ? _t("room_settings|people|see_less") : _t("room_settings|people|see_more")}
                 </AccessibleButton>
             )}
         </>
@@ -82,7 +82,7 @@ const Knock: VFC<{
 
     return (
         <div className="mx_PeopleRoomSettingsTab_knock">
-            <MemberAvatar member={roomMember} size="42px" />
+            <MemberAvatar className="mx_PeopleRoomSettingsTab_avatar" member={roomMember} size="42px" />
             <div className="mx_PeopleRoomSettingsTab_content">
                 <span className="mx_PeopleRoomSettingsTab_name">{roomMember.name}</span>
                 <Timestamp roomMember={roomMember} />
@@ -144,14 +144,14 @@ export const PeopleRoomSettingsTab: VFC<{ room: Room }> = ({ room }) => {
 
     const knockMembers = useTypedEventEmitterState(
         room,
-        RoomStateEvent.Members,
+        RoomStateEvent.Update,
         useCallback(() => room.getMembersWithMembership("knock"), [room]),
     );
 
     return (
         <SettingsTab>
             <SettingsSection heading={_t("common|people")}>
-                <SettingsFieldset legend={_t("Asking to join")}>
+                <SettingsFieldset legend={_t("room_settings|people|knock_section")}>
                     {knockMembers.length ? (
                         knockMembers.map((knockMember) => (
                             <Knock
@@ -164,7 +164,7 @@ export const PeopleRoomSettingsTab: VFC<{ room: Room }> = ({ room }) => {
                             />
                         ))
                     ) : (
-                        <p className="mx_PeopleRoomSettingsTab_paragraph">{_t("No requests")}</p>
+                        <p className="mx_PeopleRoomSettingsTab_paragraph">{_t("room_settings|people|knock_empty")}</p>
                     )}
                 </SettingsFieldset>
             </SettingsSection>

@@ -67,7 +67,7 @@ const onLearnMorePreviouslyOptedIn = (): void => {
             }
             // otherwise, the user closed the dialog without making a choice, leave the toast open
         },
-        primaryButton: _t("That's fine"),
+        primaryButton: _t("analytics|accept_button"),
         cancelButton: _t("action|stop"),
     });
 };
@@ -86,10 +86,8 @@ export const showToast = (): void => {
         // The user previously opted into our old analytics system - let them know things have changed and ask
         // them to opt in again.
         props = {
-            description: _t(
-                "You previously consented to share anonymous usage data with us. We're updating how that works.",
-            ),
-            acceptLabel: _t("That's fine"),
+            description: _t("analytics|consent_migration"),
+            acceptLabel: _t("analytics|accept_button"),
             onAccept,
             rejectLabel: _t("action|learn_more"),
             onReject: onLearnMorePreviouslyOptedIn,
@@ -103,11 +101,7 @@ export const showToast = (): void => {
             </AccessibleButton>
         );
         props = {
-            description: _t(
-                "Share anonymous data to help us identify issues. Nothing personal. No third parties. <LearnMoreLink>Learn More</LearnMoreLink>",
-                {},
-                { LearnMoreLink: learnMoreLink },
-            ),
+            description: _t("analytics|learn_more", {}, { LearnMoreLink: learnMoreLink }),
             acceptLabel: _t("action|yes"),
             onAccept,
             rejectLabel: _t("action|no"),
@@ -122,7 +116,7 @@ export const showToast = (): void => {
     const analyticsOwner = SdkConfig.get("analytics_owner") ?? SdkConfig.get().brand;
     ToastStore.sharedInstance().addOrReplaceToast({
         key: TOAST_KEY,
-        title: _t("Help improve %(analyticsOwner)s", { analyticsOwner }),
+        title: _t("analytics|enable_prompt", { analyticsOwner }),
         props,
         component: GenericToast,
         className: "mx_AnalyticsToast",

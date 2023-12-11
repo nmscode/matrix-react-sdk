@@ -3,7 +3,7 @@
 exports[`AppTile destroys non-persisted right panel widget on room change 1`] = `
 <DocumentFragment>
   <aside
-    class="mx_RightPanel dark-panel"
+    class="mx_RightPanel"
     id="mx_RightPanel"
   >
     <div
@@ -20,22 +20,26 @@ exports[`AppTile destroys non-persisted right panel widget on room change 1`] = 
           title="Close"
         />
         <div
-          class="mx_BaseCard_header_title"
+          class="mx_BaseCard_headerProp"
         >
-          <h4
-            class="mx_Heading_h4 mx_BaseCard_header_title_heading"
-          >
-            Example 1
-          </h4>
           <div
-            aria-expanded="false"
-            aria-haspopup="true"
-            aria-label="Options"
-            class="mx_AccessibleButton mx_BaseCard_header_title_button--option"
-            role="button"
-            tabindex="0"
-            title="Options"
-          />
+            class="mx_BaseCard_header_title"
+          >
+            <h4
+              class="mx_Heading_h4 mx_BaseCard_header_title_heading"
+            >
+              Example 1
+            </h4>
+            <div
+              aria-expanded="false"
+              aria-haspopup="true"
+              aria-label="Options"
+              class="mx_AccessibleButton mx_BaseCard_header_title_button--option"
+              role="button"
+              tabindex="0"
+              title="Options"
+            />
+          </div>
         </div>
       </div>
       <div
@@ -104,23 +108,21 @@ exports[`AppTile for a pinned widget should render 1`] = `
         <span>
           <span
             aria-label="Avatar"
-            class="_avatar_2lhia_17 mx_BaseAvatar mx_WidgetAvatar"
+            class="_avatar_1o69u_17 mx_BaseAvatar mx_WidgetAvatar"
             data-color="1"
             data-testid="avatar-img"
             data-type="round"
             style="--cpd-avatar-size: 20px;"
-            title=""
           >
             <img
               alt=""
-              class="_image_2lhia_45"
+              class="_image_1o69u_49"
               crossorigin="anonymous"
               data-type="round"
               height="20px"
               loading="lazy"
               referrerpolicy="no-referrer"
               src="image-file-stub"
-              title=""
               width="20px"
             />
           </span>
@@ -193,23 +195,21 @@ exports[`AppTile for a pinned widget should render permission request 1`] = `
         <span>
           <span
             aria-label="Avatar"
-            class="_avatar_2lhia_17 mx_BaseAvatar mx_WidgetAvatar"
+            class="_avatar_1o69u_17 mx_BaseAvatar mx_WidgetAvatar"
             data-color="1"
             data-testid="avatar-img"
             data-type="round"
             style="--cpd-avatar-size: 20px;"
-            title=""
           >
             <img
               alt=""
-              class="_image_2lhia_45"
+              class="_image_1o69u_49"
               crossorigin="anonymous"
               data-type="round"
               height="20px"
               loading="lazy"
               referrerpolicy="no-referrer"
               src="image-file-stub"
-              title=""
               width="20px"
             />
           </span>
@@ -273,13 +273,12 @@ exports[`AppTile for a pinned widget should render permission request 1`] = `
           </div>
           <div>
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="1"
               data-testid="avatar-img"
               data-type="round"
               role="presentation"
               style="--cpd-avatar-size: 38px;"
-              title=""
             >
               u
             </span>
@@ -350,23 +349,21 @@ exports[`AppTile preserves non-persisted widget on container move 1`] = `
               <span>
                 <span
                   aria-label="Avatar"
-                  class="_avatar_2lhia_17 mx_BaseAvatar mx_WidgetAvatar"
+                  class="_avatar_1o69u_17 mx_BaseAvatar mx_WidgetAvatar"
                   data-color="1"
                   data-testid="avatar-img"
                   data-type="round"
                   style="--cpd-avatar-size: 20px;"
-                  title=""
                 >
                   <img
                     alt=""
-                    class="_image_2lhia_45"
+                    class="_image_1o69u_49"
                     crossorigin="anonymous"
                     data-type="round"
                     height="20px"
                     loading="lazy"
                     referrerpolicy="no-referrer"
                     src="image-file-stub"
-                    title=""
                     width="20px"
                   />
                 </span>

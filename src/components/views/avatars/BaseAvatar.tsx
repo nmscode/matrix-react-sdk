@@ -99,7 +99,7 @@ const BaseAvatar: React.FC<IProps> = (props) => {
     const {
         name,
         idName,
-        title = "",
+        title,
         url,
         urls,
         size = "40px",
@@ -107,7 +107,7 @@ const BaseAvatar: React.FC<IProps> = (props) => {
         inputRef,
         className,
         type = "round",
-        altText = _t("Avatar"),
+        altText = _t("common|avatar"),
         ...otherProps
     } = props;
 

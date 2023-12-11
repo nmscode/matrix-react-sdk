@@ -71,13 +71,12 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="7"
               data-testid="avatar-img"
               data-type="round"
               role="presentation"
               style="--cpd-avatar-size: 20px;"
-              title=""
             >
               U
             </span>
@@ -142,13 +141,12 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="8"
               data-testid="avatar-img"
               data-type="round"
               role="presentation"
               style="--cpd-avatar-size: 20px;"
-              title=""
             >
               U
             </span>
@@ -214,13 +212,12 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="8"
               data-testid="avatar-img"
               data-type="round"
               role="presentation"
               style="--cpd-avatar-size: 20px;"
-              title=""
             >
               N
             </span>
@@ -292,13 +289,12 @@ exports[`SpaceHierarchy <SpaceHierarchy /> renders 1`] = `
             class="mx_SpaceHierarchy_roomTile_avatar"
           >
             <span
-              class="_avatar_2lhia_17 mx_BaseAvatar _avatar-imageless_2lhia_56"
+              class="_avatar_1o69u_17 mx_BaseAvatar _avatar-imageless_1o69u_60"
               data-color="2"
               data-testid="avatar-img"
               data-type="round"
               role="presentation"
               style="--cpd-avatar-size: 20px;"
-              title=""
             >
               N
             </span>

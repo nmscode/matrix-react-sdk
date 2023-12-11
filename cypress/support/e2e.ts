@@ -40,7 +40,6 @@ import "./network";
 import "./composer";
 import "./proxy";
 import "./axe";
-import "./mailhog";
 import "./promise";
 
 installLogsCollector({
@@ -50,7 +49,9 @@ installLogsCollector({
         "cons:info",
         "cons:warn",
         "cons:error",
-        // "cons:debug",
+        // most of our logs go through `loglevel`, which sets `logger.log` to be an alias of `logger.debug`.
+        // Hence, if we want to capture `logger.log` lines, we need to enable `cons:debug` here.
+        "cons:debug",
         "cy:log",
         "cy:xhr",
         "cy:fetch",
